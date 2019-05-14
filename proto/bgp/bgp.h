@@ -20,6 +20,8 @@
 #include "lib/hash.h"
 #include "lib/socket.h"
 
+#include "map.h"
+
 struct linpool;
 struct eattr;
 
@@ -214,6 +216,10 @@ struct bgp_conn {
   timer *connect_timer;
   timer *hold_timer;
   timer *keepalive_timer;
+
+    /* My personal timers */
+    timer *mrai_timer;
+
   event *tx_ev;
   u32 packets_to_send;			/* Bitmap of packet types to be sent */
   u32 channels_to_send;			/* Bitmap of channels with packets to be sent */
@@ -263,6 +269,9 @@ struct bgp_proto {
   u8 last_error_class; 			/* Error class of last error */
   u32 last_error_code;			/* Error code of last error. BGP protocol errors
 					   are encoded as (bgp_err_code << 16 | bgp_err_subcode) */
+    unsigned int number_of_update_sent;
+
+  //TODO insert variables in the protocol and not in general
 };
 
 struct bgp_channel {
@@ -442,7 +451,9 @@ void bgp_stop(struct bgp_proto *p, uint subcode, byte *data, uint len);
 struct rte_source *bgp_find_source(struct bgp_proto *p, u32 path_id);
 struct rte_source *bgp_get_source(struct bgp_proto *p, u32 path_id);
 
-
+//Aggiunta a manina
+//Potrebbe essere utile in alcune situaizoni per avere un recap del protocollo
+void bgp_show_proto_info_mine(struct bgp_proto *P);
 
 #ifdef LOCAL_DEBUG
 #define BGP_FORCE_DEBUG 1
@@ -470,6 +481,13 @@ bgp_set_attr(ea_list **attrs, struct linpool *pool, uint code, uint flags, uintp
 static inline void
 bgp_set_attr_u32(ea_list **to, struct linpool *pool, uint code, uint flags, u32 val)
 { bgp_set_attr(to, pool, code, flags, (uintptr_t) val); }
+
+eattr *
+bgp_set_attr_load(ea_list **attrs, struct linpool *pool, uint code, uint flags, uintptr_t val);
+
+static inline void
+bgp_set_attr_load_u32(ea_list **to, struct linpool *pool, uint code, uint flags, double val)
+{ bgp_set_attr_load(to, pool, code, flags, (uintptr_t) val); }
 
 static inline void
 bgp_set_attr_ptr(ea_list **to, struct linpool *pool, uint code, uint flags, struct adata *val)
@@ -509,6 +527,10 @@ int bgp_import_control(struct proto *, struct rte **, struct ea_list **, struct 
 int bgp_get_attr(struct eattr *e, byte *buf, int buflen);
 void bgp_get_route_info(struct rte *, byte *buf, struct ea_list *attrs);
 
+/* attrs.c */ //TODO all this functions was static and not in the .h
+ea_list *bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *attrs0, struct linpool *pool);
+struct bgp_bucket *bgp_get_bucket(struct bgp_channel *c, ea_list *new);
+struct bgp_prefix *bgp_get_prefix(struct bgp_channel *c, net_addr *net, u32 path_id);
 
 /* packets.c */
 
@@ -558,6 +580,88 @@ void bgp_update_next_hop(struct bgp_export_state *s, eattr *a, ea_list **to);
 #define BA_AS4_PATH             0x11	/* RFC 6793 */
 #define BA_AS4_AGGREGATOR       0x12	/* RFC 6793 */
 #define BA_LARGE_COMMUNITY	0x20	/* RFC 8092 */
+
+#define BA_LOAD_OUT 0x22
+#define BA_AS_NH_LIST		0x23
+#define BA_AS_LOAD  0x24
+
+//TODO refactor position of this functions
+void
+statoAttualeDellaMappa(void);
+void
+statoAttualeDellaMappaMinimal(void);
+void
+updateNHmap(int);
+
+void initRTmap(void);
+
+/*
+ * Punto ad utilizzare una mappa delle destinazioni
+ * Chiave della mappa: net_addr_ip4 in modo da identificare univocamente una destinazione
+ * d -> identifica la chiave ed è anche elemento interno in modo da poterlo usare se necessario
+ * m -> identificata la metrica, essenzialmente in bgp non ci interessa per mantenere una sola metrica
+ * NH-> Lista dei next hop per raggiungere la destinazione, è l'AS_PATH
+ * loadin -> mappa per i previus hop ed i loro contributi, in sostanza quelli a cui manderò la rotta, con relativo contributo
+ * load -> centralità di d conosciuta dal nodo
+*/
+
+typedef struct {
+  net_addr *d;
+  int interno; //0 = interno, 1 = esterno
+  map_int_t NH;
+  map_float_t loadin;
+  float load;
+  //Needed for the rt_notify
+  struct proto *P;
+  struct channel *C;
+  net *n;
+  rte *rtElem;
+  ea_list *ea;
+  int primaVolta;
+} RTable;
+
+typedef struct {
+    u32 remote_as;
+} remoteAS;
+
+typedef map_t(remoteAS) RemoteAS_map_t;
+
+typedef struct {
+    float load;
+    int metrica;
+    int changed;
+    RemoteAS_map_t remoteMap;
+} ASLoad;
+
+//TODO insert this tables in the protocol
+typedef map_t(RTable) RTable_map_t;
+typedef map_t(ASLoad) ASLoad_map_t;
+
+map_int_t ExternalDestinationMap;
+RTable_map_t RTmap;
+ASLoad_map_t ASLoad_map;
+
+//TODO put somewhere else this definition
+RTable initRTableElement(net_addr*, int, int);
+
+//TODO check each single variable if is needed or could be replaced or already taken into account by the protcol,
+// the needed one needs to be inserted into the protocol class
+int withdraw_checker;
+int rilevatoLoop;
+int nhKey;
+int ASRicezione;
+int sonoIlNH;
+int numeroNHarrivati;
+float loadOutRilevato;
+float loadComplessivo;
+char cKey[12];
+char nhCKey[12];
+int NhVecchio;
+int esportoDestinazioni;
+char ASLocale[12];
+float loadOut;
+
+unsigned int total_number_of_update_sent;
 
 /* Bird's private internal BGP attributes */
 #define BA_MPLS_LABEL_STACK	0xfe	/* MPLS label stack transfer attribute */

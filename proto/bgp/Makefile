@@ -1,4 +1,4 @@
-src := attrs.c bgp.c packets.c
+src := attrs.c bgp.c packets.c map.c
 obj := $(src-o-files)
 $(all-daemon)
 $(cf-local)
