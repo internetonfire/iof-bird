@@ -1509,8 +1509,10 @@ void
 bgp_init_bucket_table(struct bgp_channel *c)
 {
     HASH_INIT(c->bucket_hash, c->pool, 8);
+    //HASH_INIT(c->pending_bucket_hash, c->pool, 8);
 
     init_list(&c->bucket_queue);
+    //init_list(&c->pending_bucket_queue);
     c->withdraw_bucket = NULL;
 }
 
@@ -1518,6 +1520,7 @@ void
 bgp_free_bucket_table(struct bgp_channel *c)
 {
     HASH_FREE(c->bucket_hash);
+    //HASH_FREE(c->pending_bucket_hash);
 
     struct bgp_bucket *b;
     WALK_LIST_FIRST(b, c->bucket_queue)
@@ -1525,9 +1528,28 @@ bgp_free_bucket_table(struct bgp_channel *c)
         rem_node(&b->send_node);
         mb_free(b);
     }
+    /*WALK_LIST_FIRST(b, c->pending_bucket_queue)
+    {
+        rem_node(&b->send_node);
+        mb_free(b);
+    }*/
 
     mb_free(c->withdraw_bucket);
     c->withdraw_bucket = NULL;
+}
+
+void bgp_copy_bucket_list(struct bgp_channel *c, list from_queue, list to_queue){
+    struct bgp_bucket *b;
+    struct bgp_bucket *b_next;
+    log(L_INFO "Walking...");
+    /*HASH_FREE(c->pending_bucket_hash);
+    WALK_LIST_DELSAFE(b, b_next, from_queue)
+    {
+        add_tail(&c->bucket_queue, &b->send_node);
+        HASH_INSERT2(c->bucket_hash, RBH, c->pool, b);
+    }*/
+    add_tail_list(&to_queue,&from_queue);
+    log(L_INFO "End walking...");
 }
 
 struct bgp_bucket *
@@ -1536,9 +1558,9 @@ bgp_get_bucket(struct bgp_channel *c, ea_list *new)
     /* Hash and lookup */
     u32 hash = ea_hash(new);
     struct bgp_bucket *b = HASH_FIND(c->bucket_hash, RBH, new, hash);
-
-    if (b)
-    return b;
+    if (b) {
+        return b;
+    }
 
     uint ea_size = sizeof(ea_list) + new->count * sizeof(eattr);
     uint ea_size_aligned = BIRD_ALIGN(ea_size, CPU_STRUCT_ALIGN);
@@ -1579,7 +1601,6 @@ bgp_get_bucket(struct bgp_channel *c, ea_list *new)
         }
     }
 
-    /* Insert the bucket to send queue and bucket hash */
     add_tail(&c->bucket_queue, &b->send_node);
     HASH_INSERT2(c->bucket_hash, RBH, c->pool, b);
 
@@ -1603,6 +1624,7 @@ bgp_free_bucket(struct bgp_channel *c, struct bgp_bucket *b)
 {
     rem_node(&b->send_node);
     HASH_REMOVE2(c->bucket_hash, RBH, c->pool, b);
+    //HASH_REMOVE2(c->pending_bucket_hash, RBH, c->pool, b);
     mb_free(b);
 }
 
@@ -1684,6 +1706,7 @@ bgp_get_prefix(struct bgp_channel *c, net_addr *net, u32 path_id)
     px->buck_node.prev = NULL;
     px->hash = hash;
     px->path_id = path_id;
+    px->timestamp = current_real_time();
     net_copy(px->net, net);
     HASH_INSERT2(c->prefix_hash, PXH, c->pool, px);
     return px;
@@ -1963,7 +1986,6 @@ void bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *ol
     sprintf(cKey, "%d", n->n.addr->data[0] + n->n.addr->data[1] + n->n.addr->data[2] + n->n.addr->data[3]);
     if(withdraw_checker == 0){
         if (! bgp_find_attr(attrs, BA_ORIGIN)){
-            eattr *a = bgp_find_attr(attrs,BA_ORIGIN);
             RTable *rt = map_get(&RTmap, cKey);
 
             if (!rt) {
@@ -2031,9 +2053,18 @@ void bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *ol
     px = bgp_get_prefix(c, n->n.addr, c->add_path_tx ? path : 0);
     add_tail(&buck->prefixes, &px->buck_node);
 
-    if(p->conn != NULL && C != NULL) {
-        bgp_schedule_packet(p->conn, c, PKT_UPDATE);
-    }
+    bgp_schedule_packet(p->conn, c, PKT_UPDATE);
+
+    /*if(!tm_active(p->conn->conn_mrai_timer)) {
+        log(L_INFO "MRAI timer NOT active, I can share the UPDATE");
+        if (p->conn != NULL && C != NULL) {
+            bgp_schedule_packet(p->conn, c, PKT_UPDATE);
+        }
+        //bgp_start_timer(global_mrai_timer, p->cf->c.global->global_mrai);
+    } else {
+        log(L_INFO "global timer ACTIVE, I can not share the UPDATE");
+        //global_mrai_timer->data = (void *)p;
+    }*/
     /* Simil MRAI variant
     if(tm_remains(p->conn->mrai_timer) == 0){
         if(p->conn != NULL && C == NULL) {

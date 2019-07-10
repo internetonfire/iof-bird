@@ -76,7 +76,6 @@ struct bgp_af_desc {
   void (*decode_next_hop)(struct bgp_parse_state *s, byte *pos, uint len, rta *a);
 };
 
-
 struct bgp_config {
   struct proto_config c;
   u32 local_as, remote_as;
@@ -115,6 +114,7 @@ struct bgp_config {
   unsigned connect_delay_time;		/* Minimum delay between connect attempts */
   unsigned connect_retry_time;		/* Timeout for connect attempts */
   unsigned hold_time, initial_hold_time;
+  unsigned mrai_time;       /* MRAI TIMER */
   unsigned keepalive_time;
   unsigned error_amnesia_time;		/* Errors are forgotten after */
   unsigned error_delay_time_min;	/* Time to wait after an error is detected */
@@ -217,8 +217,8 @@ struct bgp_conn {
   timer *hold_timer;
   timer *keepalive_timer;
 
-    /* My personal timers */
-    timer *mrai_timer;
+  /* My personal timers */
+  timer *conn_mrai_timer;
 
   event *tx_ev;
   u32 packets_to_send;			/* Bitmap of packet types to be sent */
@@ -309,6 +309,10 @@ struct bgp_channel {
 
   u8 feed_state;			/* Feed state (TX) for EoR, RR packets, see BFS_* */
   u8 load_state;			/* Load state (RX) for EoR, RR packets, see BFS_* */
+
+  /* MRAI components */
+  //HASH(struct bgp_bucket) pending_bucket_hash;
+  //list pending_bucket_queue;
 };
 
 struct bgp_prefix {
@@ -317,6 +321,7 @@ struct bgp_prefix {
   u32 hash;
   u32 path_id;
   net_addr net[0];
+  btime timestamp;
 };
 
 struct bgp_bucket {
@@ -531,6 +536,8 @@ void bgp_get_route_info(struct rte *, byte *buf, struct ea_list *attrs);
 ea_list *bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *attrs0, struct linpool *pool);
 struct bgp_bucket *bgp_get_bucket(struct bgp_channel *c, ea_list *new);
 struct bgp_prefix *bgp_get_prefix(struct bgp_channel *c, net_addr *net, u32 path_id);
+void bgp_copy_bucket_list(struct bgp_channel *c, list from_queue, list to_queue);
+void bgp_free_pending_bucket(struct bgp_channel *c, struct bgp_bucket *b);
 
 /* packets.c */
 
@@ -660,6 +667,8 @@ int NhVecchio;
 int esportoDestinazioni;
 char ASLocale[12];
 float loadOut;
+
+int bgp_fire_tx(struct bgp_conn *conn);
 
 unsigned int total_number_of_update_sent;
 

@@ -2421,7 +2421,6 @@ bgp_create_mp_unreach(struct bgp_write_state *s, struct bgp_bucket *buck, byte *
  * @param buf
  * @return
  */
- //TODO sfruttare il bucket per reinoltrare gli update
 static byte *
 bgp_create_update(struct bgp_channel *c, byte *buf)
 {
@@ -2936,7 +2935,7 @@ bgp_send(struct bgp_conn *conn, uint type, uint len)
  * queued (Notification > Keepalive > Open > Update), assembling its header
  * and body and sending it to the connection.
  */
-static int
+int
 bgp_fire_tx(struct bgp_conn *conn)
 {
     struct bgp_proto *p = conn->bgp;
@@ -2976,7 +2975,7 @@ bgp_fire_tx(struct bgp_conn *conn)
         end = bgp_create_open(conn, pkt);
         return bgp_send(conn, PKT_OPEN, end - buf);
     }
-    else while (conn->channels_to_send)
+    else while (conn->channels_to_send && !((s & (1 << PKT_UPDATE)) && tm_active(conn->conn_mrai_timer)))
         {
             c = bgp_get_channel_to_send(p, conn);
             s = c->packets_to_send;
@@ -2997,36 +2996,45 @@ bgp_fire_tx(struct bgp_conn *conn)
             else if (s & (1 << PKT_UPDATE))
             {
                 BGP_TRACE(D_PACKETS, "Ho un pkt di UPDATE da inviare");
-                end = bgp_create_update(c, pkt);
-                if (end){
-                    BGP_TRACE(D_PACKETS, "CONFERMATO PKT UPDATE");
-                    return bgp_send(conn, PKT_UPDATE, end - buf);
-                }
+                if(!tm_active(conn->conn_mrai_timer)) {
+                    BGP_TRACE(D_PACKETS, "Il timer MRAI non è attivo");
+                    end = bgp_create_update(c, pkt);
+                    if (end) {
+                        BGP_TRACE(D_PACKETS, "CONFERMATO PKT UPDATE");
+                        bgp_start_timer(conn->conn_mrai_timer, conn->bgp->cf->mrai_time);
+                        return bgp_send(conn, PKT_UPDATE, end - buf);
+                    }
 
-                /* No update to send, perhaps we need to send End-of-RIB or EoRR */
-                BGP_TRACE(D_PACKETS, "MERDA");
-                c->packets_to_send = 0;
-                conn->channels_to_send &= ~(1 << c->index);
+                    /* No update to send, perhaps we need to send End-of-RIB or EoRR */
+                    c->packets_to_send = 0;
+                    conn->channels_to_send &= ~(1 << c->index);
 
-                if (c->feed_state == BFS_LOADED)
-                {
-                    c->feed_state = BFS_NONE;
-                    end = bgp_create_end_mark(c, pkt);
-                    return bgp_send(conn, PKT_UPDATE, end - buf);
-                }
+                    if (c->feed_state == BFS_LOADED)
+                    {
+                        c->feed_state = BFS_NONE;
+                        end = bgp_create_end_mark(c, pkt);
+                        return bgp_send(conn, PKT_UPDATE, end - buf);
+                    }
 
-                else if (c->feed_state == BFS_REFRESHED)
-                {
-                    c->feed_state = BFS_NONE;
-                    end = bgp_create_end_refresh(c, pkt);
-                    return bgp_send(conn, PKT_ROUTE_REFRESH, end - buf);
+                    else if (c->feed_state == BFS_REFRESHED)
+                    {
+                        c->feed_state = BFS_NONE;
+                        end = bgp_create_end_refresh(c, pkt);
+                        return bgp_send(conn, PKT_ROUTE_REFRESH, end - buf);
+                    }
+
+                    c->packets_to_send = 0;
+                    conn->channels_to_send &= ~(1 << c->index);
+                } else {
+                    BGP_TRACE(D_PACKETS, "Il timer MRAI è attivo");
                 }
             }
-            else if (s)
+            else if (s) {
                 bug("Channel packets_to_send: %x", s);
 
-            c->packets_to_send = 0;
-            conn->channels_to_send &= ~(1 << c->index);
+                c->packets_to_send = 0;
+                conn->channels_to_send &= ~(1 << c->index);
+            }
         }
 
     return 0;
@@ -3043,23 +3051,31 @@ bgp_fire_tx(struct bgp_conn *conn)
 void
 bgp_schedule_packet(struct bgp_conn *conn, struct bgp_channel *c, int type)
 {
+    log(L_INFO "bgp_schedule_packet");
     ASSERT(conn->sk);
 
     DBG("BGP: Scheduling packet type %d\n", type);
+    log(L_INFO "BGP: Scheduling packet type %d", type);
     if (c)
     {
+        // log(L_INFO "c not null");
         if (! conn->channels_to_send)
         {
+            // log(L_INFO "! conn->channels_to_send");
             conn->last_channel = c->index;
             conn->last_channel_count = 0;
         }
+        // log(L_INFO "idk 1");
         c->packets_to_send |= 1 << type;
         conn->channels_to_send |= 1 << c->index;
     }
-    else
+    else {
         conn->packets_to_send |= 1 << type;
+        // log(L_INFO "idk 2");
+    }
 
     if ((conn->sk->tpos == conn->sk->tbuf) && !ev_active(conn->tx_ev)) {
+        // log(L_INFO "evento schedulato!");
         ev_schedule(conn->tx_ev);
     }
 }

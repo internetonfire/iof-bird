@@ -311,14 +311,14 @@ bgp_get_channel_to_send(struct bgp_proto *p, struct bgp_conn *conn)
 }
 
 static void
-bgp_mrai_timeout(timer *t)
+conn_mrai_timeout(timer *t)
 {
     //How to extract data from the timer
     struct bgp_conn *conn = t->data;
-    struct bgp_channel *c;
+    struct bgp_proto *p = conn->bgp;
 
-    //Simple message for the user
-    log(L_INFO "CIAO, MRAI timer scaduto, posso schedulare i pacchetti");
+    BGP_TRACE(D_EVENTS, "MRAI timeout");
+    bgp_fire_tx(conn);
 }
 
 static void
@@ -433,8 +433,8 @@ bgp_close_conn(struct bgp_conn *conn)
     conn->hold_timer = NULL;
 
     /* My MRAI timer */
-    rfree(conn->mrai_timer);
-    conn->mrai_timer = NULL;
+    rfree(conn->conn_mrai_timer);
+    conn->conn_mrai_timer = NULL;
 
     rfree(conn->tx_ev);
     conn->tx_ev = NULL;
@@ -673,9 +673,6 @@ bgp_conn_enter_established_state(struct bgp_conn *conn)
 
     bgp_conn_set_state(conn, BS_ESTABLISHED);
     proto_notify_state(&p->p, PS_UP);
-
-    //Start del timer mrai
-    //bgp_start_timer(conn->mrai_timer, 5);
 }
 
 static void
@@ -769,6 +766,11 @@ bgp_handle_graceful_restart(struct bgp_proto *p)
         bgp_init_bucket_table(c);
         bgp_init_prefix_table(c);
         c->packets_to_send = 0;
+
+        /* Reset MRAI timer */
+        if(tm_active(p->conn->conn_mrai_timer)){
+            tm_stop(p->conn->conn_mrai_timer);
+        }
     }
 
     /* p->gr_ready -> at least one active channel is c->gr_ready */
@@ -876,9 +878,6 @@ bgp_send_open(struct bgp_conn *conn)
     bgp_schedule_packet(conn, NULL, PKT_OPEN);
     bgp_conn_set_state(conn, BS_OPENSENT);
     bgp_start_timer(conn->hold_timer, conn->bgp->cf->initial_hold_time);
-
-    /* My timer startup */
-    //bgp_start_timer(conn->mrai_timer, 10);
 }
 
 static void
@@ -989,8 +988,9 @@ bgp_setup_conn(struct bgp_proto *p, struct bgp_conn *conn)
     conn->hold_timer 	= tm_new_init(p->p.pool, bgp_hold_timeout,	 conn, 0, 0);
     conn->keepalive_timer	= tm_new_init(p->p.pool, bgp_keepalive_timeout, conn, 0, 0);
 
+    //global_mrai_timer->data = (void *)p->p.pool;
     /* My personal timer */
-    conn->mrai_timer = tm_new_init(p->p.pool, bgp_mrai_timeout, conn, 0, 0);
+    conn->conn_mrai_timer = tm_new_init(p->p.pool, conn_mrai_timeout, conn, 0, 0);
 
     conn->tx_ev = ev_new(p->p.pool);
     conn->tx_ev->hook = bgp_kick_tx;
