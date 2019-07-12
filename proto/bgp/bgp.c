@@ -381,6 +381,21 @@ bgp_start_timer(timer *t, uint value)
         tm_stop(t);
 }
 
+void
+bgp_start_ms_timer(timer *t, uint value)
+{
+    if (value)
+    {
+        /* The randomization procedure is specified in RFC 4271 section 10 */
+        btime time = value MS;
+        btime randomize = random() % ((time / 4) + 1);
+        log(L_INFO "Timer avviato con un delay di %d ms", time - randomize);
+        tm_start(t, time - randomize);
+    }
+    else
+        tm_stop(t);
+}
+
 /**
  * bgp_close_conn - close a BGP connection
  * @conn: connection to close

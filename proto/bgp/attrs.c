@@ -1733,58 +1733,58 @@ bgp_free_prefix(struct bgp_channel *c, struct bgp_prefix *px)
 int
 bgp_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
 {
-rte *e = *new;
-struct proto *SRC = e->attrs->src->proto;
-struct bgp_proto *p = (struct bgp_proto *) P;
-struct bgp_proto *src = (SRC->proto == &proto_bgp) ? (struct bgp_proto *) SRC : NULL;
+    rte *e = *new;
+    struct proto *SRC = e->attrs->src->proto;
+    struct bgp_proto *p = (struct bgp_proto *) P;
+    struct bgp_proto *src = (SRC->proto == &proto_bgp) ? (struct bgp_proto *) SRC : NULL;
 
-//TODO prima era return 0
-/* Reject our routes */
-if (src == p){
-    //log(L_INFO "WITHDRAW CHECKER = %d", withdraw_checker);
+    //TODO prima era return 0
+    /* Reject our routes */
+    if (src == p){
+        //log(L_INFO "WITHDRAW CHECKER = %d", withdraw_checker);
+        return 0;
+    }
+
+    /* Accept non-BGP routes */
+    if (src == NULL)
     return 0;
-}
 
-/* Accept non-BGP routes */
-if (src == NULL)
-return 0;
+    // XXXX: Check next hop AF
 
-// XXXX: Check next hop AF
+    /* IBGP route reflection, RFC 4456 */
+    if (p->is_internal && src->is_internal && (p->local_as == src->local_as))
+    {
+        /* Rejected unless configured as route reflector */
+        if (!p->rr_client && !src->rr_client)
+            return -1;
 
-/* IBGP route reflection, RFC 4456 */
-if (p->is_internal && src->is_internal && (p->local_as == src->local_as))
-{
-/* Rejected unless configured as route reflector */
-if (!p->rr_client && !src->rr_client)
-return -1;
+        /* Generally, this should be handled when path is received, but we check it
+           also here as rr_cluster_id may be undefined or different in src. */
+        if (p->rr_cluster_id && bgp_cluster_list_loopy(p, e->attrs->eattrs))
+            return -1;
+    }
 
-/* Generally, this should be handled when path is received, but we check it
-   also here as rr_cluster_id may be undefined or different in src. */
-if (p->rr_cluster_id && bgp_cluster_list_loopy(p, e->attrs->eattrs))
-return -1;
-}
+    /* Handle well-known communities, RFC 1997 */
+    struct eattr *c;
+    if (p->cf->interpret_communities &&
+    (c = ea_find(e->attrs->eattrs, EA_CODE(EAP_BGP, BA_COMMUNITY))))
+    {
+        struct adata *d = c->u.ptr;
 
-/* Handle well-known communities, RFC 1997 */
-struct eattr *c;
-if (p->cf->interpret_communities &&
-(c = ea_find(e->attrs->eattrs, EA_CODE(EAP_BGP, BA_COMMUNITY))))
-{
-struct adata *d = c->u.ptr;
+        /* Do not export anywhere */
+        if (int_set_contains(d, BGP_COMM_NO_ADVERTISE))
+            return -1;
 
-/* Do not export anywhere */
-if (int_set_contains(d, BGP_COMM_NO_ADVERTISE))
-return -1;
+        /* Do not export outside of AS (or member-AS) */
+        if (!p->is_internal && int_set_contains(d, BGP_COMM_NO_EXPORT_SUBCONFED))
+            return -1;
 
-/* Do not export outside of AS (or member-AS) */
-if (!p->is_internal && int_set_contains(d, BGP_COMM_NO_EXPORT_SUBCONFED))
-return -1;
+        /* Do not export outside of AS (or confederation) */
+        if (!p->is_interior && int_set_contains(d, BGP_COMM_NO_EXPORT))
+            return -1;
+    }
 
-/* Do not export outside of AS (or confederation) */
-if (!p->is_interior && int_set_contains(d, BGP_COMM_NO_EXPORT))
-return -1;
-}
-
-return 0;
+    return 0;
 }
 
 

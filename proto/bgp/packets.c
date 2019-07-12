@@ -3000,8 +3000,8 @@ bgp_fire_tx(struct bgp_conn *conn)
                     BGP_TRACE(D_PACKETS, "Il timer MRAI non è attivo");
                     end = bgp_create_update(c, pkt);
                     if (end) {
-                        BGP_TRACE(D_PACKETS, "CONFERMATO PKT UPDATE");
-                        bgp_start_timer(conn->conn_mrai_timer, conn->bgp->cf->mrai_time);
+                        BGP_TRACE(D_PACKETS, "CONFERMATO PKT UPDATE, avvio il timer considerando un delay di %d ms", conn->bgp->cf->mrai_time);
+                        bgp_start_ms_timer(conn->conn_mrai_timer, conn->bgp->cf->mrai_time);
                         return bgp_send(conn, PKT_UPDATE, end - buf);
                     }
 
