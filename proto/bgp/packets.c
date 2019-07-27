@@ -1334,12 +1334,16 @@ bgp_encode_nlri_ip4_mrai(struct bgp_write_state *s, struct bgp_bucket *buck, byt
 {
     byte *pos = buf;
 
-    init_list(&delay_prefixes);
+    //init_list(&delay_prefixes);
 
     log(L_INFO "encode nlri mrai, list len: %d",list_length(&buck->prefixes));
     struct bgp_prefix *px;
+    int jumped = 0;
     WALK_LIST_FIRST(px, buck->prefixes)
     {
+        if(jumped == list_length(&buck->prefixes)){
+            break;
+        }
         //while (!EMPTY_LIST(buck->prefixes) && (size >= BGP_NLRI_MAX)){
         if (size >= BGP_NLRI_MAX) {
             //struct bgp_prefix *px = HEAD(buck->prefixes);
@@ -1376,40 +1380,88 @@ bgp_encode_nlri_ip4_mrai(struct bgp_write_state *s, struct bgp_bucket *buck, byt
                 struct bgp_bucket *buck;
                 buck = bgp_get_delayed_bucket();
                 add_tail(&buck->prefixes, &tmp_prefix->buck_node);
+
+                /* Encode path ID */
+                if (s->add_path) {
+                    put_u32(pos, px->path_id);
+                    ADVANCE(pos, size, 4);
+                }
+
+                /* Encode prefix length */
+                *pos = net->pxlen;
+                ADVANCE(pos, size, 1);
+
+                /* Encode MPLS labels */
+                if (s->mpls)
+                    bgp_encode_mpls_labels(s, s->mpls_labels, &pos, &size, pos - 1);
+
+                /* Encode prefix body */
+                ip4_addr a = ip4_hton(net->prefix);
+                uint b = (net->pxlen + 7) / 8;
+                memcpy(pos, &a, b);
+                ADVANCE(pos, size, b);
+                bgp_free_prefix(s->channel, px);
+                prefixAdded++;
             } else {
                 log(L_INFO
                 "Destinazione già all'interno della tabella");
                 if (current_time() > tmp_prefix->end_mrai){
                     log(L_INFO
                     "Il timer è finito");
+
+                    tmp_prefix->sharing_time = current_time();
+                    tmp_prefix->end_mrai = current_time() + 5000 MS;
+
+                    /* Encode path ID */
+                    if (s->add_path) {
+                        put_u32(pos, px->path_id);
+                        ADVANCE(pos, size, 4);
+                    }
+
+                    /* Encode prefix length */
+                    *pos = net->pxlen;
+                    ADVANCE(pos, size, 1);
+
+                    /* Encode MPLS labels */
+                    if (s->mpls)
+                        bgp_encode_mpls_labels(s, s->mpls_labels, &pos, &size, pos - 1);
+
+                    /* Encode prefix body */
+                    ip4_addr a = ip4_hton(net->prefix);
+                    uint b = (net->pxlen + 7) / 8;
+                    memcpy(pos, &a, b);
+                    ADVANCE(pos, size, b);
+                    bgp_free_prefix(s->channel, px);
+                    prefixAdded++;
                 } else {
                     char share_time[TM_DATETIME_BUFFER_SIZE];
                     tm_format_time(share_time, &TM_ISO_SHORT_MS, tmp_prefix->end_mrai);
                     log(L_INFO
                     "Il timer NON è finito, la rete %N potrà essere condivsa fino a: %s", &px->net, share_time);
+                    jumped++;
                 }
             }
 
             /* Encode path ID */
-            if (s->add_path) {
+            /*if (s->add_path) {
                 put_u32(pos, px->path_id);
                 ADVANCE(pos, size, 4);
-            }
+            }*/
 
             /* Encode prefix length */
-            *pos = net->pxlen;
+            /**pos = net->pxlen;
             ADVANCE(pos, size, 1);
-
+            */
             /* Encode MPLS labels */
-            if (s->mpls)
+            /*if (s->mpls)
                 bgp_encode_mpls_labels(s, s->mpls_labels, &pos, &size, pos - 1);
-
+            */
             /* Encode prefix body */
-            ip4_addr a = ip4_hton(net->prefix);
+            /*ip4_addr a = ip4_hton(net->prefix);
             uint b = (net->pxlen + 7) / 8;
             memcpy(pos, &a, b);
             ADVANCE(pos, size, b);
-            bgp_free_prefix(s->channel, px);
+            bgp_free_prefix(s->channel, px);*/
             //add_tail(&delay_prefixes, &px->buck_node);
         }
     }
@@ -3332,9 +3384,15 @@ bgp_fire_tx(struct bgp_conn *conn)
                 }
                 else { /* MRAI timer destination-based */
                     BGP_TRACE(D_PACKETS, "Il timer MRAI non è attivo");
+                    prefixAdded = 0;
                     end = bgp_create_update_mrai_destination_based(c, pkt);
                     BGP_TRACE(D_PACKETS, "Pacchetto creato");
                     bgp_study_delayed_buck(delayed_bucket);
+
+                    if(prefixAdded == 0){
+                        log(L_INFO "Nessuna rotta aggiunta al pacchetto");
+                        return 0;
+                    }
 
                     if (end) {
                         /* Enable the timer only if the mrai timer is different than 0 */

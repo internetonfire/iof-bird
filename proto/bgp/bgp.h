@@ -322,7 +322,8 @@ struct bgp_channel {
 struct bgp_bucket *delayed_bucket;
 HASH(struct bgp_prefix) sent_prefix_hash;	/* Prefixes already sent */
 slab *sent_prefix_slab;			/* Slab holding prefix nodes */
-list delay_prefixes;
+//list delay_prefixes;
+int prefixAdded;
 
 struct bgp_prefix {
   node buck_node;			/* Node in per-bucket list */
