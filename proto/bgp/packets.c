@@ -1246,6 +1246,34 @@ bgp_decode_mpls_labels(struct bgp_parse_state *s, byte **pos, uint *len, uint *p
     return;
 }
 
+/*
+ *	Prefix hash table
+ */
+
+#define PXH_KEY(px)		px->net, px->path_id, px->hash
+#define PXH_NEXT(px)		px->next
+//I have no idea of what I'm reading in the line below
+#define PXH_EQ(n1,i1,h1,n2,i2,h2) h1 == h2 && i1 == i2 && net_equal(n1, n2)
+#define PXH_FN(n,i,h)		h
+
+#define PXH_REHASH		bgp_pxh_rehash
+#define PXH_PARAMS		/8, *2, 2, 2, 8, 20
+
+
+HASH_DEFINE_REHASH_FN(PXH, struct bgp_prefix)
+
+static struct bgp_bucket *
+bgp_get_delayed_bucket()
+{
+    if (!delayed_bucket)
+    {
+        delayed_bucket = mb_allocz(proto_pool, sizeof(struct bgp_bucket));
+        init_list(&delayed_bucket->prefixes);
+    }
+
+    return delayed_bucket;
+}
+
 /**
  * Function used to encode a prexif in the knowledge of the AS inside the packet
  * @param s state
@@ -1258,6 +1286,8 @@ static uint
 bgp_encode_nlri_ip4(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size)
 {
     byte *pos = buf;
+
+    log(L_INFO "encode nlri NO mrai");
 
     while (!EMPTY_LIST(buck->prefixes) && (size >= BGP_NLRI_MAX))
     {
@@ -1287,6 +1317,107 @@ bgp_encode_nlri_ip4(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
 
         bgp_free_prefix(s->channel, px);
     }
+
+    return pos - buf;
+}
+
+/**
+ * Function used to encode a prexif in the knowledge of the AS inside the packet
+ * @param s state
+ * @param buck bucket where to get the prefix
+ * @param buf
+ * @param size
+ * @return
+ */
+static uint
+bgp_encode_nlri_ip4_mrai(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size)
+{
+    byte *pos = buf;
+
+    init_list(&delay_prefixes);
+
+    log(L_INFO "encode nlri mrai, list len: %d",list_length(&buck->prefixes));
+    struct bgp_prefix *px;
+    WALK_LIST_FIRST(px, buck->prefixes)
+    {
+        //while (!EMPTY_LIST(buck->prefixes) && (size >= BGP_NLRI_MAX)){
+        if (size >= BGP_NLRI_MAX) {
+            //struct bgp_prefix *px = HEAD(buck->prefixes);
+            struct net_addr_ip4 *net = (void *) px->net;
+
+            log(L_INFO
+            "Trovata nel bucket rete: %N", &px->net);
+
+            /* create a second prefix from the first one */
+            struct bgp_prefix *tmp_prefix = HASH_FIND(sent_prefix_hash, PXH, px->net, px->path_id, px->hash);
+            if (!tmp_prefix) {
+                log(L_INFO
+                "Not found in the hash table");
+                if (sent_prefix_slab) {
+                    log(L_INFO
+                    "slab");
+                    tmp_prefix = sl_alloc(sent_prefix_slab);
+                } else {
+                    log(L_INFO
+                    "MB");
+                    tmp_prefix = mb_alloc(proto_pool, sizeof(struct bgp_prefix) + px->net->length);
+                }
+                tmp_prefix->buck_node.next = NULL;
+                tmp_prefix->buck_node.prev = NULL;
+                tmp_prefix->hash = px->hash;
+                tmp_prefix->path_id = px->path_id;
+                log(L_INFO
+                "Len di px->net: %d", px->net->length);
+                net_copy(tmp_prefix->net, px->net);
+                tmp_prefix->sharing_time = current_time();
+                tmp_prefix->end_mrai = current_time() + 5000 MS;
+                HASH_INSERT2(sent_prefix_hash, PXH, proto_pool, tmp_prefix);
+
+                struct bgp_bucket *buck;
+                buck = bgp_get_delayed_bucket();
+                add_tail(&buck->prefixes, &tmp_prefix->buck_node);
+            } else {
+                log(L_INFO
+                "Destinazione già all'interno della tabella");
+                if (current_time() > tmp_prefix->end_mrai){
+                    log(L_INFO
+                    "Il timer è finito");
+                } else {
+                    char share_time[TM_DATETIME_BUFFER_SIZE];
+                    tm_format_time(share_time, &TM_ISO_SHORT_MS, tmp_prefix->end_mrai);
+                    log(L_INFO
+                    "Il timer NON è finito, la rete %N potrà essere condivsa fino a: %s", &px->net, share_time);
+                }
+            }
+
+            /* Encode path ID */
+            if (s->add_path) {
+                put_u32(pos, px->path_id);
+                ADVANCE(pos, size, 4);
+            }
+
+            /* Encode prefix length */
+            *pos = net->pxlen;
+            ADVANCE(pos, size, 1);
+
+            /* Encode MPLS labels */
+            if (s->mpls)
+                bgp_encode_mpls_labels(s, s->mpls_labels, &pos, &size, pos - 1);
+
+            /* Encode prefix body */
+            ip4_addr a = ip4_hton(net->prefix);
+            uint b = (net->pxlen + 7) / 8;
+            memcpy(pos, &a, b);
+            ADVANCE(pos, size, b);
+            bgp_free_prefix(s->channel, px);
+            //add_tail(&delay_prefixes, &px->buck_node);
+        }
+    }
+
+    /*while(!EMPTY_LIST(delay_prefixes)){
+        px = HEAD(buck->prefixes);
+        bgp_free_prefix(s->channel, px);
+    }*/
 
     return pos - buf;
 }
@@ -2100,6 +2231,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .net = NET_IP4,
                 .name = "ipv4",
                 .encode_nlri = bgp_encode_nlri_ip4,
+                .encode_nlri_mrai = bgp_encode_nlri_ip4_mrai,
                 .decode_nlri = bgp_decode_nlri_ip4,
                 .encode_next_hop = bgp_encode_next_hop_ip,
                 .decode_next_hop = bgp_decode_next_hop_ip,
@@ -2110,6 +2242,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .net = NET_IP4,
                 .name = "ipv4-mc",
                 .encode_nlri = bgp_encode_nlri_ip4,
+                .encode_nlri_mrai = bgp_encode_nlri_ip4_mrai,
                 .decode_nlri = bgp_decode_nlri_ip4,
                 .encode_next_hop = bgp_encode_next_hop_ip,
                 .decode_next_hop = bgp_decode_next_hop_ip,
@@ -2121,6 +2254,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .mpls = 1,
                 .name = "ipv4-mpls",
                 .encode_nlri = bgp_encode_nlri_ip4,
+                .encode_nlri_mrai = bgp_encode_nlri_ip4_mrai,
                 .decode_nlri = bgp_decode_nlri_ip4,
                 .encode_next_hop = bgp_encode_next_hop_ip,
                 .decode_next_hop = bgp_decode_next_hop_ip,
@@ -2131,6 +2265,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .net = NET_IP6,
                 .name = "ipv6",
                 .encode_nlri = bgp_encode_nlri_ip6,
+                .encode_nlri_mrai = bgp_encode_nlri_ip6,
                 .decode_nlri = bgp_decode_nlri_ip6,
                 .encode_next_hop = bgp_encode_next_hop_ip,
                 .decode_next_hop = bgp_decode_next_hop_ip,
@@ -2141,6 +2276,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .net = NET_IP6,
                 .name = "ipv6-mc",
                 .encode_nlri = bgp_encode_nlri_ip6,
+                .encode_nlri_mrai = bgp_encode_nlri_ip6,
                 .decode_nlri = bgp_decode_nlri_ip6,
                 .encode_next_hop = bgp_encode_next_hop_ip,
                 .decode_next_hop = bgp_decode_next_hop_ip,
@@ -2152,6 +2288,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .mpls = 1,
                 .name = "ipv6-mpls",
                 .encode_nlri = bgp_encode_nlri_ip6,
+                .encode_nlri_mrai = bgp_encode_nlri_ip6,
                 .decode_nlri = bgp_decode_nlri_ip6,
                 .encode_next_hop = bgp_encode_next_hop_ip,
                 .decode_next_hop = bgp_decode_next_hop_ip,
@@ -2163,6 +2300,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .mpls = 1,
                 .name = "vpn4-mpls",
                 .encode_nlri = bgp_encode_nlri_vpn4,
+                .encode_nlri_mrai = bgp_encode_nlri_vpn4,
                 .decode_nlri = bgp_decode_nlri_vpn4,
                 .encode_next_hop = bgp_encode_next_hop_vpn,
                 .decode_next_hop = bgp_decode_next_hop_vpn,
@@ -2174,6 +2312,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .mpls = 1,
                 .name = "vpn6-mpls",
                 .encode_nlri = bgp_encode_nlri_vpn6,
+                .encode_nlri_mrai = bgp_encode_nlri_vpn6,
                 .decode_nlri = bgp_decode_nlri_vpn6,
                 .encode_next_hop = bgp_encode_next_hop_vpn,
                 .decode_next_hop = bgp_decode_next_hop_vpn,
@@ -2184,6 +2323,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .net = NET_VPN4,
                 .name = "vpn4-mc",
                 .encode_nlri = bgp_encode_nlri_vpn4,
+                .encode_nlri_mrai = bgp_encode_nlri_vpn4,
                 .decode_nlri = bgp_decode_nlri_vpn4,
                 .encode_next_hop = bgp_encode_next_hop_vpn,
                 .decode_next_hop = bgp_decode_next_hop_vpn,
@@ -2194,6 +2334,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .net = NET_VPN6,
                 .name = "vpn6-mc",
                 .encode_nlri = bgp_encode_nlri_vpn6,
+                .encode_nlri_mrai = bgp_encode_nlri_vpn6,
                 .decode_nlri = bgp_decode_nlri_vpn6,
                 .encode_next_hop = bgp_encode_next_hop_vpn,
                 .decode_next_hop = bgp_decode_next_hop_vpn,
@@ -2205,6 +2346,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .no_igp = 1,
                 .name = "flow4",
                 .encode_nlri = bgp_encode_nlri_flow4,
+                .encode_nlri_mrai = bgp_encode_nlri_flow4,
                 .decode_nlri = bgp_decode_nlri_flow4,
                 .encode_next_hop = bgp_encode_next_hop_none,
                 .decode_next_hop = bgp_decode_next_hop_none,
@@ -2216,6 +2358,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
                 .no_igp = 1,
                 .name = "flow6",
                 .encode_nlri = bgp_encode_nlri_flow6,
+                .encode_nlri_mrai = bgp_encode_nlri_flow6,
                 .decode_nlri = bgp_decode_nlri_flow6,
                 .encode_next_hop = bgp_encode_next_hop_none,
                 .decode_next_hop = bgp_decode_next_hop_none,
@@ -2238,6 +2381,12 @@ static inline uint
 bgp_encode_nlri(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, byte *end)
 {
     return s->channel->desc->encode_nlri(s, buck, buf, end - buf);
+}
+
+static inline uint
+bgp_encode_nlri_mrai_destination_based(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, byte *end)
+{
+    return s->channel->desc->encode_nlri_mrai(s, buck, buf, end - buf);
 }
 
 static inline uint
@@ -2287,6 +2436,43 @@ bgp_create_ip_reach(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
     put_u16(buf+2, la);
 
     lr = bgp_encode_nlri(s, buck, buf+4+la, end);
+
+    return buf+4+la+lr;
+}
+
+/**
+ * For updates with new reachability info
+ * @param s
+ * @param buck
+ * @param buf
+ * @param end
+ * @return
+ */
+static byte *
+bgp_create_ip_reach_mrai_destination_based(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, byte *end)
+{
+    /*
+     *	2 B	Withdrawn Routes Length (zero)
+     *	---	IPv4 Withdrawn Routes NLRI (unused)
+     *	2 B	Total Path Attribute Length
+     *	var	Path Attributes
+     *	var	IPv4 Network Layer Reachability Information
+     */
+
+    int lr, la;
+
+    la = bgp_encode_attrs(s, buck->eattrs, buf+4, buf + MAX_ATTRS_LENGTH);
+    if (la < 0)
+    {
+        /* Attribute list too long */
+        bgp_withdraw_bucket(s->channel, buck);
+        return NULL;
+    }
+
+    put_u16(buf+0, 0);
+    put_u16(buf+2, la);
+
+    lr = bgp_encode_nlri_mrai_destination_based(s, buck, buf+4+la, end);
 
     return buf+4+la+lr;
 }
@@ -2479,6 +2665,89 @@ bgp_create_update(struct bgp_channel *c, byte *buf)
         goto done;
     }
 
+    /* No more prefixes to send */
+    return NULL;
+
+    done:
+    BGP_TRACE_RL(&rl_snd_update, D_PACKETS, "Devo inviare un update");
+    //TODO spostare queste infor più su, solamente se res non è null
+    p->number_of_update_sent += 1;
+    total_number_of_update_sent += 1;
+    BGP_TRACE_RL(&rl_snd_update, D_PACKETS,"Numero totale di update inviati per questa conn: %d, pacchetti complessivi: %d", p->number_of_update_sent, total_number_of_update_sent);
+    BGP_TRACE_RL(&rl_snd_update, D_PACKETS, "Sending UPDATE");
+    lp_flush(s.pool);
+
+    return res;
+}
+
+/**
+ * Generic function to create an update
+ * @param c
+ * @param buf
+ * @return
+ */
+static byte *
+bgp_create_update_mrai_destination_based(struct bgp_channel *c, byte *buf)
+{
+    struct bgp_proto *p = (void *) c->c.proto;
+    struct bgp_bucket *buck;
+    byte *end = buf + (bgp_max_packet_length(p->conn) - BGP_HEADER_LENGTH);
+    byte *res = NULL;
+
+    again: ;
+    log(L_INFO "Again");
+
+    /* Initialize write state */
+    struct bgp_write_state s = {
+            .proto = p,
+            .channel = c,
+            .pool = bgp_linpool,
+            .as4_session = p->as4_session,
+            .add_path = c->add_path_tx,
+            .mpls = c->desc->mpls,
+    };
+
+    /* Try unreachable bucket */
+    //If there is information inside this bucket i will send a withdrow
+    if ((buck = c->withdraw_bucket) && !EMPTY_LIST(buck->prefixes))
+    {
+        res = (c->afi == BGP_AF_IPV4) && !c->ext_next_hop ?
+              bgp_create_ip_unreach(&s, buck, buf, end):
+              bgp_create_mp_unreach(&s, buck, buf, end);
+
+        log(L_INFO "going in done for unreachable information set");
+        goto done;
+    }
+
+    /* Try reachable buckets */
+    if (!EMPTY_LIST(c->bucket_queue)) //Il bucket degli indirizzi non è vuoto
+    {
+        buck = HEAD(c->bucket_queue);
+
+        /* Cleanup empty buckets */
+        if (EMPTY_LIST(buck->prefixes))
+        {
+            bgp_free_bucket(c, buck);
+            goto again;
+        }
+
+        res = (c->afi == BGP_AF_IPV4) && !c->ext_next_hop ?
+              bgp_create_ip_reach_mrai_destination_based(&s, buck, buf, end):
+              bgp_create_mp_reach(&s, buck, buf, end);
+
+        if (EMPTY_LIST(buck->prefixes))
+            bgp_free_bucket(c, buck);
+        else
+            bgp_defer_bucket(c, buck);
+
+        if (!res)
+            goto again;
+
+        log(L_INFO "going in done for reachable information set");
+        goto done;
+    }
+
+    log(L_INFO "Return NULL");
     /* No more prefixes to send */
     return NULL;
 
@@ -2925,6 +3194,30 @@ bgp_send(struct bgp_conn *conn, uint type, uint len)
     return sk_send(sk, len);
 }
 
+void
+bgp_study_delayed_buck(struct bgp_bucket *buck){
+    log(L_INFO "bgp_study_delayed_buck");
+    if(buck) {
+        struct bgp_prefix *px;
+        log(L_INFO "Prefix list len: %d", list_length(&buck->prefixes));
+        WALK_LIST(px,buck->prefixes){
+            px->net->type = 1;
+            char time[TM_DATETIME_BUFFER_SIZE];
+            tm_format_time(time, &TM_ISO_SHORT_MS, px->sharing_time);
+            char share_time[TM_DATETIME_BUFFER_SIZE];
+            tm_format_time(share_time, &TM_ISO_SHORT_MS, px->end_mrai);
+            log(L_INFO
+            "Trovata nel bucket rete: %N con timer: %s verrà condivso dopo: %s", &px->net, time, share_time);
+        }
+        log(L_INFO
+        "no more delayed prefixes");
+    }
+    else
+    {
+        log(L_INFO "bucket not initialized");
+    }
+}
+
 /**
  * bgp_fire_tx - transmit packets
  * @conn: connection
@@ -2975,7 +3268,8 @@ bgp_fire_tx(struct bgp_conn *conn)
         end = bgp_create_open(conn, pkt);
         return bgp_send(conn, PKT_OPEN, end - buf);
     }
-    else while (conn->channels_to_send && !((s & (1 << PKT_UPDATE)) && tm_active(conn->conn_mrai_timer)))
+    else while (conn->channels_to_send &&
+                !((s & (1 << PKT_UPDATE)) && tm_active(conn->conn_mrai_timer) && conn->bgp->cf->mrai_type == 0))
         {
             c = bgp_get_channel_to_send(p, conn);
             s = c->packets_to_send;
@@ -2996,12 +3290,56 @@ bgp_fire_tx(struct bgp_conn *conn)
             else if (s & (1 << PKT_UPDATE))
             {
                 BGP_TRACE(D_PACKETS, "Ho un pkt di UPDATE da inviare");
-                if(!tm_active(conn->conn_mrai_timer)) {
+                /* MRAI timer peer-based */
+                if(conn->bgp->cf->mrai_type == 0) {
+                    if (!tm_active(conn->conn_mrai_timer)) {
+                        BGP_TRACE(D_PACKETS, "Il timer MRAI non è attivo");
+                        end = bgp_create_update(c, pkt);
+                        BGP_TRACE(D_PACKETS, "Pacchetto creato");
+
+                        if (end) {
+                            /* Enable the timer only if the mrai timer is different than 0 */
+                            log(L_INFO
+                            "mrai type: %d", conn->bgp->cf->mrai_type);
+                            if (conn->bgp->cf->mrai_time != 0) {
+                                BGP_TRACE(D_PACKETS,
+                                          "CONFERMATO PKT UPDATE, avvio il timer considerando un delay di %d ms",
+                                          conn->bgp->cf->mrai_time);
+                                bgp_start_ms_timer(conn->conn_mrai_timer, conn->bgp->cf->mrai_time);
+                            }
+                            return bgp_send(conn, PKT_UPDATE, end - buf);
+                        }
+
+                        /* No update to send, perhaps we need to send End-of-RIB or EoRR */
+                        c->packets_to_send = 0;
+                        conn->channels_to_send &= ~(1 << c->index);
+
+                        if (c->feed_state == BFS_LOADED) {
+                            c->feed_state = BFS_NONE;
+                            end = bgp_create_end_mark(c, pkt);
+                            return bgp_send(conn, PKT_UPDATE, end - buf);
+                        } else if (c->feed_state == BFS_REFRESHED) {
+                            c->feed_state = BFS_NONE;
+                            end = bgp_create_end_refresh(c, pkt);
+                            return bgp_send(conn, PKT_ROUTE_REFRESH, end - buf);
+                        }
+
+                        c->packets_to_send = 0;
+                        conn->channels_to_send &= ~(1 << c->index);
+                    } else {
+                        BGP_TRACE(D_PACKETS, "Il timer MRAI è attivo");
+                    }
+                }
+                else { /* MRAI timer destination-based */
                     BGP_TRACE(D_PACKETS, "Il timer MRAI non è attivo");
-                    end = bgp_create_update(c, pkt);
+                    end = bgp_create_update_mrai_destination_based(c, pkt);
+                    BGP_TRACE(D_PACKETS, "Pacchetto creato");
+                    bgp_study_delayed_buck(delayed_bucket);
+
                     if (end) {
-                        BGP_TRACE(D_PACKETS, "CONFERMATO PKT UPDATE, avvio il timer considerando un delay di %d ms", conn->bgp->cf->mrai_time);
-                        bgp_start_ms_timer(conn->conn_mrai_timer, conn->bgp->cf->mrai_time);
+                        /* Enable the timer only if the mrai timer is different than 0 */
+                        log(L_INFO
+                        "mrai type: %d", conn->bgp->cf->mrai_type);
                         return bgp_send(conn, PKT_UPDATE, end - buf);
                     }
 
@@ -3009,15 +3347,11 @@ bgp_fire_tx(struct bgp_conn *conn)
                     c->packets_to_send = 0;
                     conn->channels_to_send &= ~(1 << c->index);
 
-                    if (c->feed_state == BFS_LOADED)
-                    {
+                    if (c->feed_state == BFS_LOADED) {
                         c->feed_state = BFS_NONE;
                         end = bgp_create_end_mark(c, pkt);
                         return bgp_send(conn, PKT_UPDATE, end - buf);
-                    }
-
-                    else if (c->feed_state == BFS_REFRESHED)
-                    {
+                    } else if (c->feed_state == BFS_REFRESHED) {
                         c->feed_state = BFS_NONE;
                         end = bgp_create_end_refresh(c, pkt);
                         return bgp_send(conn, PKT_ROUTE_REFRESH, end - buf);
@@ -3025,8 +3359,6 @@ bgp_fire_tx(struct bgp_conn *conn)
 
                     c->packets_to_send = 0;
                     conn->channels_to_send &= ~(1 << c->index);
-                } else {
-                    BGP_TRACE(D_PACKETS, "Il timer MRAI è attivo");
                 }
             }
             else if (s) {

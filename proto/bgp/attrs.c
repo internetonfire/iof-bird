@@ -1676,6 +1676,13 @@ bgp_init_prefix_table(struct bgp_channel *c)
 
     uint alen = net_addr_length[c->c.net_type];
     c->prefix_slab = alen ? sl_new(c->pool, sizeof(struct bgp_prefix) + alen) : NULL;
+
+    if(!sent_prefix_slab){
+        HASH_INIT(sent_prefix_hash, c->pool, 8);
+
+        uint alen2 = net_addr_length[c->c.net_type];
+        sent_prefix_slab = alen2 ? sl_new(c->pool, sizeof(struct bgp_prefix) + alen2) : NULL;
+    }
 }
 
 void
@@ -1685,6 +1692,12 @@ bgp_free_prefix_table(struct bgp_channel *c)
 
     rfree(c->prefix_slab);
     c->prefix_slab = NULL;
+
+    if(sent_prefix_slab){
+        HASH_FREE(sent_prefix_hash);
+        rfree(sent_prefix_slab);
+        sent_prefix_slab = NULL;
+    }
 }
 
 struct bgp_prefix *
@@ -1706,7 +1719,8 @@ bgp_get_prefix(struct bgp_channel *c, net_addr *net, u32 path_id)
     px->buck_node.prev = NULL;
     px->hash = hash;
     px->path_id = path_id;
-    px->timestamp = current_real_time();
+    px->sharing_time = current_time();
+    px->end_mrai = current_time() + 5000 MS;
     net_copy(px->net, net);
     HASH_INSERT2(c->prefix_hash, PXH, c->pool, px);
     return px;
@@ -1724,6 +1738,17 @@ bgp_free_prefix(struct bgp_channel *c, struct bgp_prefix *px)
         mb_free(px);
 }
 
+void
+bgp_free_delayed_prefix(struct bgp_prefix *px)
+{
+    rem_node(&px->buck_node);
+    HASH_REMOVE2(sent_prefix_hash, PXH, proto_pool, px);
+
+    if (sent_prefix_slab)
+        sl_free(sent_prefix_slab, px);
+    else
+        mb_free(px);
+}
 
 /*
  *	BGP protocol glue -> wtf is a protocol glue?

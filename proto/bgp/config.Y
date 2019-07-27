@@ -43,6 +43,7 @@ bgp_proto_start: proto_start BGP {
      BGP_CFG->multihop = -1;	/* undefined */
      BGP_CFG->hold_time = 240;
      BGP_CFG->mrai_time = 0;
+     BGP_CFG->mrai_type = 1;
      BGP_CFG->initial_hold_time = 240;
      BGP_CFG->compare_path_lengths = 1;
      BGP_CFG->igp_metric = 1;
@@ -99,6 +100,7 @@ bgp_proto:
  | bgp_proto CONFEDERATION MEMBER bool ';' { BGP_CFG->confederation_member = $4; }
  | bgp_proto HOLD TIME expr ';' { BGP_CFG->hold_time = $4; }
  | bgp_proto MRAI TIME expr ';' { BGP_CFG->mrai_time = $4; }
+ | bgp_proto MRAI TYPE expr ';' { BGP_CFG->mrai_type = $4; }
  | bgp_proto STARTUP HOLD TIME expr ';' { BGP_CFG->initial_hold_time = $5; }
  | bgp_proto DIRECT ';' { BGP_CFG->multihop = 0; }
  | bgp_proto MULTIHOP ';' { BGP_CFG->multihop = 64; }

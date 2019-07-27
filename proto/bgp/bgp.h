@@ -70,6 +70,7 @@ struct bgp_af_desc {
   u8 no_igp;
   const char *name;
   uint (*encode_nlri)(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size);
+  uint (*encode_nlri_mrai)(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size);
   void (*decode_nlri)(struct bgp_parse_state *s, byte *pos, uint len, rta *a);
   void (*update_next_hop)(struct bgp_export_state *s, eattr *nh, ea_list **to);
   uint (*encode_next_hop)(struct bgp_write_state *s, eattr *nh, byte *buf, uint size);
@@ -115,6 +116,7 @@ struct bgp_config {
   unsigned connect_retry_time;		/* Timeout for connect attempts */
   unsigned hold_time, initial_hold_time;
   unsigned mrai_time;       /* MRAI TIMER */
+  unsigned mrai_type;       /* MRAI TYPE, 0 PEER-BASED MRAI, !0 DESTINATION-BASED mrai */
   unsigned keepalive_time;
   unsigned error_amnesia_time;		/* Errors are forgotten after */
   unsigned error_delay_time_min;	/* Time to wait after an error is detected */
@@ -269,7 +271,7 @@ struct bgp_proto {
   u8 last_error_class; 			/* Error class of last error */
   u32 last_error_code;			/* Error code of last error. BGP protocol errors
 					   are encoded as (bgp_err_code << 16 | bgp_err_subcode) */
-    unsigned int number_of_update_sent;
+  unsigned int number_of_update_sent;
 
   //TODO insert variables in the protocol and not in general
 };
@@ -315,13 +317,21 @@ struct bgp_channel {
   //list pending_bucket_queue;
 };
 
+/* Global list for prefixes already sent */
+//TODO insert prefixes slab to store the already sent prefixes
+struct bgp_bucket *delayed_bucket;
+HASH(struct bgp_prefix) sent_prefix_hash;	/* Prefixes already sent */
+slab *sent_prefix_slab;			/* Slab holding prefix nodes */
+list delay_prefixes;
+
 struct bgp_prefix {
   node buck_node;			/* Node in per-bucket list */
   struct bgp_prefix *next;		/* Node in prefix hash table */
   u32 hash;
   u32 path_id;
+  btime sharing_time;   /* Timer to memorize the last time this prefix was sent */
+  btime end_mrai;
   net_addr net[0];
-  btime timestamp;
 };
 
 struct bgp_bucket {
@@ -524,6 +534,7 @@ void bgp_withdraw_bucket(struct bgp_channel *c, struct bgp_bucket *b);
 void bgp_init_prefix_table(struct bgp_channel *c);
 void bgp_free_prefix_table(struct bgp_channel *c);
 void bgp_free_prefix(struct bgp_channel *c, struct bgp_prefix *bp);
+void bgp_free_delayed_prefix(struct bgp_prefix *px);
 
 int bgp_rte_better(struct rte *, struct rte *);
 int bgp_rte_mergable(rte *pri, rte *sec);

@@ -274,6 +274,7 @@ bgp_startup(struct bgp_proto *p)
 
     initRTmap();
     loadComplessivo = 0;
+    sent_prefix_slab = NULL;
 }
 
 static void

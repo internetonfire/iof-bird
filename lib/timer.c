@@ -292,7 +292,7 @@ tm_parse_time(char *x)
 /**
  * tm_format_time - convert date and time to textual representation
  * @x: destination buffer of size %TM_DATETIME_BUFFER_SIZE
- * @fmt: specification of resulting textual representation of the time
+ * @fmt: specification of resulting textual representaton of the time
  * @t: time
  *
  * This function formats the given relative time value @t to a textual
