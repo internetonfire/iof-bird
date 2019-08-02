@@ -1334,6 +1334,7 @@ already_in_conn_list(list *connections, struct bgp_conn *conn){
 
 /**
  * Function used to encode a prexif in the knowledge of the AS inside the packet
+ * Using the MRAI destintion timer model
  * @param s state
  * @param buck bucket where to get the prefix
  * @param buf
@@ -1345,13 +1346,14 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
 {
     byte *pos = buf;
 
-    //init_list(&delay_prefixes);
 
     log(L_INFO "encode nlri mrai, list len: %d",list_length(&buck->prefixes));
     struct bgp_prefix *px;
     int jumped = 0;
+    /* Scorrimento della lista dei prefissi, walk list first aka while che prevede l'eliminazione dell'oggetto */
     WALK_LIST_FIRST(px, buck->prefixes)
     {
+        /* Se tutti gli elementi sono stati saltati interrompo il while */
         if(jumped == list_length(&buck->prefixes)){
             log(L_INFO "interrupted for a jump");
             break;
@@ -1378,6 +1380,7 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
                     "MB");
                     tmp_prefix = mb_alloc(proto_pool, sizeof(struct bgp_prefix) + px->net->length);
                 }
+                /* Init tmp prefix parameters */
                 tmp_prefix->buck_node.next = NULL;
                 tmp_prefix->buck_node.prev = NULL;
                 tmp_prefix->hash = px->hash;
@@ -1388,30 +1391,14 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
                 tmp_prefix->sharing_time = current_time();
                 tmp_prefix->end_mrai = current_time() + conn->bgp->cf->mrai_time MS;
 
-                /*struct conn_list_node *conn_node;
-                if (connections_slab) {
-                    log(L_INFO
-                    "slab");
-                    conn_node = sl_alloc(connections_slab);
-                } else {
-                    log(L_INFO
-                    "MB");
-                    conn_node = mb_alloc(proto_pool, sizeof(struct conn_list_node));
-                }
-                conn_node->conn_node.next = NULL;
-                conn_node->conn_node.prev = NULL;
-                conn_node->conn = conn;*/
-
                 init_list(&tmp_prefix->connections);
-                //add_tail(&tmp_prefix->connections, &conn_node->conn_node);
 
-                //tmp_prefix->next_mrai_conn = NULL;
-                //struct conn_list_node *head = HEAD(tmp_prefix->connections);
-                //struct bgp_conn *conn2 = NULL;
+                /* Timer settings */
                 tmp_prefix->dest_mrai_timer = tm_new_init(proto_pool, dest_mrai_timeout, &tmp_prefix->connections, 0, 0);
                 bgp_start_ms_timer(tmp_prefix->dest_mrai_timer, conn->bgp->cf->mrai_time);
                 HASH_INSERT2(sent_prefix_hash, PXH, proto_pool, tmp_prefix);
 
+                /* Add prefix to the delayed bucket */
                 struct bgp_bucket *buck;
                 buck = bgp_get_delayed_bucket();
                 add_tail(&buck->prefixes, &tmp_prefix->buck_node);
@@ -1444,30 +1431,10 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
                     log(L_INFO
                     "Il timer è finito");
 
+                    /* Timer and tmp_prefix update */
                     tmp_prefix->sharing_time = current_time();
                     tmp_prefix->end_mrai = current_time() + conn->bgp->cf->mrai_time MS;
-                    /*struct conn_list_node *actual_head = HEAD(tmp_prefix->connections);
-                    bgp_free_conn_from_prefix(actual_head);
 
-                    struct conn_list_node *conn_node;
-                    if (connections_slab) {
-                        log(L_INFO
-                        "slab");
-                        conn_node = sl_alloc(connections_slab);
-                    } else {
-                        log(L_INFO
-                        "MB");
-                        conn_node = mb_alloc(proto_pool, sizeof(struct conn_list_node));
-                    }
-                    conn_node->conn_node.next = NULL;
-                    conn_node->conn_node.prev = NULL;
-                    conn_node->conn = conn;*/
-
-                    //add_tail(&tmp_prefix->connections, &conn_node->conn_node);
-
-                    //tmp_prefix->next_mrai_conn = conn;
-                    //struct conn_list_node *head = HEAD(tmp_prefix->connections);
-                    //struct bgp_conn *conn2 = NULL;
                     tmp_prefix->dest_mrai_timer = tm_new_init(proto_pool, dest_mrai_timeout, &tmp_prefix->connections, 0, 0);
                     bgp_start_ms_timer(tmp_prefix->dest_mrai_timer, conn->bgp->cf->mrai_time);
 
@@ -1493,10 +1460,8 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
                     bgp_free_prefix(s->channel, px);
                     prefixAdded++;
                 } else {
-                    //add_tail(connections, &tmp_conn->conn_node);
-                    //struct conn_list_node *actual_head = HEAD(tmp_prefix->connections);
-                    //bgp_free_conn_from_prefix(actual_head);
 
+                    /* Create connection element */
                     struct conn_list_node *conn_node;
                     if (connections_slab) {
                         log(L_INFO
@@ -1507,18 +1472,16 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
                         "MB");
                         conn_node = mb_alloc(proto_pool, sizeof(struct conn_list_node));
                     }
+                    /* Init connection element */
                     conn_node->conn_node.next = NULL;
                     conn_node->conn_node.prev = NULL;
                     conn_node->conn = conn;
 
+                    /* Se la connection non è già in lista allora la aggiungo */
                     if(!already_in_conn_list(&tmp_prefix->connections, conn)) {
                         add_tail(&tmp_prefix->connections, &conn_node->conn_node);
                     }
 
-                    //tmp_prefix->next_mrai_conn = conn;
-                    //struct conn_list_node *head = HEAD(tmp_prefix->connections);
-                    //struct bgp_conn *conn2 = head->conn;
-                    //tmp_prefix->dest_mrai_timer->data = conn2;
                     char share_time[TM_DATETIME_BUFFER_SIZE];
                     tm_format_time(share_time, &TM_ISO_SHORT_MS, tmp_prefix->end_mrai);
                     log(L_INFO
@@ -1526,35 +1489,8 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
                     jumped++;
                 }
             }
-
-            /* Encode path ID */
-            /*if (s->add_path) {
-                put_u32(pos, px->path_id);
-                ADVANCE(pos, size, 4);
-            }*/
-
-            /* Encode prefix length */
-            /**pos = net->pxlen;
-            ADVANCE(pos, size, 1);
-            */
-            /* Encode MPLS labels */
-            /*if (s->mpls)
-                bgp_encode_mpls_labels(s, s->mpls_labels, &pos, &size, pos - 1);
-            */
-            /* Encode prefix body */
-            /*ip4_addr a = ip4_hton(net->prefix);
-            uint b = (net->pxlen + 7) / 8;
-            memcpy(pos, &a, b);
-            ADVANCE(pos, size, b);
-            bgp_free_prefix(s->channel, px);*/
-            //add_tail(&delay_prefixes, &px->buck_node);
         }
     }
-
-    /*while(!EMPTY_LIST(delay_prefixes)){
-        px = HEAD(buck->prefixes);
-        bgp_free_prefix(s->channel, px);
-    }*/
 
     return pos - buf;
 }
@@ -2860,7 +2796,7 @@ bgp_create_update_mrai_destination_based(struct bgp_conn *conn, struct bgp_chann
     log(L_INFO "number of buckets to analize: %d",list_length(&c->bucket_queue));
     if (!EMPTY_LIST(c->bucket_queue)) //Il bucket degli indirizzi non è vuoto
     {
-        //buck = HEAD(c->bucket_queue);
+        /* Ciclo sui bucket in quanto alcuni potrebbero essere saltati a causa di indirizzi ritardati da MRAI */
         WALK_LIST(buck, c->bucket_queue)
         {
             /* Cleanup empty buckets */
@@ -2878,8 +2814,6 @@ bgp_create_update_mrai_destination_based(struct bgp_conn *conn, struct bgp_chann
 
             if (EMPTY_LIST(buck->prefixes))
                 bgp_free_bucket(c, buck);
-            /*else
-                bgp_defer_bucket(c, buck);*/
 
             if (!res)
                 goto again;
@@ -2899,7 +2833,6 @@ bgp_create_update_mrai_destination_based(struct bgp_conn *conn, struct bgp_chann
 
     done:
     BGP_TRACE_RL(&rl_snd_update, D_PACKETS, "Devo inviare un update");
-    //TODO spostare queste infor più su, solamente se res non è null
     p->number_of_update_sent += 1;
     total_number_of_update_sent += 1;
     BGP_TRACE_RL(&rl_snd_update, D_PACKETS,"Numero totale di update inviati per questa conn: %d, pacchetti complessivi: %d", p->number_of_update_sent, total_number_of_update_sent);
@@ -3479,6 +3412,7 @@ bgp_fire_tx(struct bgp_conn *conn)
                 else { /* MRAI timer destination-based */
                     BGP_TRACE(D_PACKETS, "Il timer MRAI non è attivo");
                     prefixAdded = 0;
+                    /* Utilizzo di una funzione specifica per la creazione del pacchetto */
                     end = bgp_create_update_mrai_destination_based(conn, c, pkt);
                     BGP_TRACE(D_PACKETS, "Pacchetto creato");
                     bgp_study_delayed_buck(delayed_bucket);

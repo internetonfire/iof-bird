@@ -318,13 +318,12 @@ struct bgp_channel {
 };
 
 /* Global list for prefixes already sent */
-//TODO insert prefixes slab to store the already sent prefixes
 struct bgp_bucket *delayed_bucket;
 HASH(struct bgp_prefix) sent_prefix_hash;	/* Prefixes already sent */
 slab *sent_prefix_slab;			/* Slab holding prefix nodes */
-//list delay_prefixes;
 int prefixAdded;
 
+/* Data structur for the conn list */
 struct conn_list_node {
     node conn_node;
     struct conn_list_node *next;
@@ -338,10 +337,10 @@ struct bgp_prefix {
   struct bgp_prefix *next;		/* Node in prefix hash table */
   u32 hash;
   u32 path_id;
-  btime sharing_time;   /* Timer to memorize the last time this prefix was sent */
-  btime end_mrai;
-  timer *dest_mrai_timer;
-  list connections;
+  btime sharing_time;   /* timestamp to memorize the last time this prefix was sent */
+  btime end_mrai;       /* Timestamp when the MRAI will finish */
+  timer *dest_mrai_timer; /* Timer to trigger the MRAI */
+  list connections;     /* List of connection that needs to be triggered at the end of MRAI */
   struct bgp_conn *next_mrai_conn;
   net_addr net[0];
 };
