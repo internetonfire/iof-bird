@@ -43,7 +43,7 @@ bgp_proto_start: proto_start BGP {
      BGP_CFG->multihop = -1;	/* undefined */
      BGP_CFG->hold_time = 240;
      BGP_CFG->mrai_time = 0;
-     BGP_CFG->mrai_type = 1;
+     BGP_CFG->mrai_type = 0;
      BGP_CFG->initial_hold_time = 240;
      BGP_CFG->compare_path_lengths = 1;
      BGP_CFG->igp_metric = 1;
