@@ -63,20 +63,6 @@ struct bgp_parse_state;
 struct bgp_export_state;
 struct bgp_bucket;
 
-struct bgp_af_desc {
-  u32 afi;
-  u32 net;
-  u8 mpls;
-  u8 no_igp;
-  const char *name;
-  uint (*encode_nlri)(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size);
-  uint (*encode_nlri_mrai)(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size);
-  void (*decode_nlri)(struct bgp_parse_state *s, byte *pos, uint len, rta *a);
-  void (*update_next_hop)(struct bgp_export_state *s, eattr *nh, ea_list **to);
-  uint (*encode_next_hop)(struct bgp_write_state *s, eattr *nh, byte *buf, uint size);
-  void (*decode_next_hop)(struct bgp_parse_state *s, byte *pos, uint len, rta *a);
-};
-
 struct bgp_config {
   struct proto_config c;
   u32 local_as, remote_as;
@@ -233,6 +219,20 @@ struct bgp_conn {
   uint hold_time, keepalive_time;	/* Times calculated from my and neighbor's requirements */
 };
 
+struct bgp_af_desc {
+    u32 afi;
+    u32 net;
+    u8 mpls;
+    u8 no_igp;
+    const char *name;
+    uint (*encode_nlri)(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size);
+    uint (*encode_nlri_mrai)(struct bgp_conn *conn, struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size);
+    void (*decode_nlri)(struct bgp_parse_state *s, byte *pos, uint len, rta *a);
+    void (*update_next_hop)(struct bgp_export_state *s, eattr *nh, ea_list **to);
+    uint (*encode_next_hop)(struct bgp_write_state *s, eattr *nh, byte *buf, uint size);
+    void (*decode_next_hop)(struct bgp_parse_state *s, byte *pos, uint len, rta *a);
+};
+
 struct bgp_proto {
   struct proto p;
   struct bgp_config *cf;		/* Shortcut to BGP configuration */
@@ -325,6 +325,14 @@ slab *sent_prefix_slab;			/* Slab holding prefix nodes */
 //list delay_prefixes;
 int prefixAdded;
 
+struct conn_list_node {
+    node conn_node;
+    struct conn_list_node *next;
+    struct bgp_conn *conn;
+};
+
+slab *connections_slab;
+
 struct bgp_prefix {
   node buck_node;			/* Node in per-bucket list */
   struct bgp_prefix *next;		/* Node in prefix hash table */
@@ -332,6 +340,9 @@ struct bgp_prefix {
   u32 path_id;
   btime sharing_time;   /* Timer to memorize the last time this prefix was sent */
   btime end_mrai;
+  timer *dest_mrai_timer;
+  list connections;
+  struct bgp_conn *next_mrai_conn;
   net_addr net[0];
 };
 
@@ -522,6 +533,11 @@ static inline void
 bgp_unset_attr(ea_list **to, struct linpool *pool, uint code)
 { eattr *e = bgp_set_attr(to, pool, code, 0, 0); e->type = EAF_TYPE_UNDEF; }
 
+void
+conn_mrai_timeout(timer *t);
+
+void
+dest_mrai_timeout(timer *t);
 
 int bgp_encode_attrs(struct bgp_write_state *s, ea_list *attrs, byte *buf, byte *end);
 ea_list * bgp_decode_attrs(struct bgp_parse_state *s, byte *data, uint len);
@@ -535,6 +551,7 @@ void bgp_withdraw_bucket(struct bgp_channel *c, struct bgp_bucket *b);
 void bgp_init_prefix_table(struct bgp_channel *c);
 void bgp_free_prefix_table(struct bgp_channel *c);
 void bgp_free_prefix(struct bgp_channel *c, struct bgp_prefix *bp);
+void bgp_free_conn_from_prefix(struct conn_list_node *conn_node);
 void bgp_free_delayed_prefix(struct bgp_prefix *px);
 
 int bgp_rte_better(struct rte *, struct rte *);

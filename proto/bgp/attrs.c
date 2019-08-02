@@ -1682,6 +1682,7 @@ bgp_init_prefix_table(struct bgp_channel *c)
 
         uint alen2 = net_addr_length[c->c.net_type];
         sent_prefix_slab = alen2 ? sl_new(c->pool, sizeof(struct bgp_prefix) + alen2) : NULL;
+        connections_slab = sl_new(c->pool, sizeof(struct conn_list_node));
     }
 }
 
@@ -1696,6 +1697,8 @@ bgp_free_prefix_table(struct bgp_channel *c)
     if(sent_prefix_slab){
         HASH_FREE(sent_prefix_hash);
         rfree(sent_prefix_slab);
+        rfree(connections_slab);
+        sent_prefix_slab = NULL;
         sent_prefix_slab = NULL;
     }
 }
@@ -1720,7 +1723,6 @@ bgp_get_prefix(struct bgp_channel *c, net_addr *net, u32 path_id)
     px->hash = hash;
     px->path_id = path_id;
     px->sharing_time = current_time();
-    px->end_mrai = current_time() + 5000 MS;
     net_copy(px->net, net);
     HASH_INSERT2(c->prefix_hash, PXH, c->pool, px);
     return px;
@@ -1737,6 +1739,17 @@ bgp_free_prefix(struct bgp_channel *c, struct bgp_prefix *px)
     else
         mb_free(px);
 }
+
+void
+bgp_free_conn_from_prefix(struct conn_list_node *conn_node){
+    rem_node(&conn_node->conn_node);
+
+    if (connections_slab)
+        sl_free(connections_slab, conn_node);
+    else
+        mb_free(conn_node);
+}
+
 
 void
 bgp_free_delayed_prefix(struct bgp_prefix *px)

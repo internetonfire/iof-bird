@@ -311,7 +311,7 @@ bgp_get_channel_to_send(struct bgp_proto *p, struct bgp_conn *conn)
     return p->channel_map[i];
 }
 
-static void
+void
 conn_mrai_timeout(timer *t)
 {
     //How to extract data from the timer
@@ -320,6 +320,27 @@ conn_mrai_timeout(timer *t)
 
     BGP_TRACE(D_EVENTS, "MRAI timeout");
     bgp_fire_tx(conn);
+}
+
+void
+dest_mrai_timeout(timer *t)
+{
+    list *connections = t->data;
+    if (list_length(connections) > 0) {
+        //How to extract data from the timer
+        /*list *connections = t->data;
+        struct connection *tmp_conn = HEAD(*connections);*/
+        //struct bgp_prefix *px = t->data;
+        struct conn_list_node *head = HEAD(*connections);
+        struct bgp_conn *conn = head->conn;
+        struct bgp_proto *p = conn->bgp;
+
+        BGP_TRACE(D_EVENTS, "MRAI timeout");
+        //rem_node(&tmp_conn->conn_node);
+        //sl_free(conn_slab, tmp_conn);
+        bgp_fire_tx(conn);
+        bgp_free_conn_from_prefix(head);
+    }
 }
 
 static void
