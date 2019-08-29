@@ -1180,16 +1180,35 @@ rte_recalculate(struct channel *c, net *net, rte *new, struct rte_src *src)
   /* Log the route change */
   if (p->debug & D_ROUTES)
     {
-      if (new_ok)
-	rte_trace(p, new, '>', new == net->routes ? "added [best]" : "added");
+      if (new_ok) {
+          rte_trace(p, new, '>', new == net->routes ? "added [best]" : "added");
+          if (new == net->routes) {
+              //log(L_FATAL
+              //"{type: NEW_BEST_ROUTE, dest: %N}", new->net->n.addr);
+              stats->imp_updates_best_substitution++;
+          } /*else {
+              log(L_FATAL
+              "{type: NEW_PATH, dest: %N}", new->net->n.addr);
+          }*/
+          //log(L_FATAL "%s %c %s %N %s", p->name, '>', new == net->routes ? "added [best]" : "added", new->net->n.addr, rta_dest_name(new->attrs->dest));
+      }
       else if (old_ok)
 	{
-	  if (old != old_best)
-	    rte_trace(p, old, '>', "removed");
-	  else if (rte_is_ok(net->routes))
-	    rte_trace(p, old, '>', "removed [replaced]");
-	  else
-	    rte_trace(p, old, '>', "removed [sole]");
+	  if (old != old_best) {
+          rte_trace(p, old, '>', "removed");
+          //log(L_FATAL
+          //"{type: REMOVED_OLD, dest: %N}", old->net->n.addr);
+      }
+	  else if (rte_is_ok(net->routes)) {
+          rte_trace(p, old, '>', "removed [replaced]");
+          //log(L_FATAL
+          //"{type: REMOVED_REPLACED_OLD, dest: %N}", old->net->n.addr);
+      }
+	  else {
+          rte_trace(p, old, '>', "removed [sole]");
+          //log(L_FATAL
+          //"{type: REMOVED_SOLE_OLD, dest: %N}", old->net->n.addr);
+      }
 	}
     }
 

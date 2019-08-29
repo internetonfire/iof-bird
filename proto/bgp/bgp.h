@@ -691,6 +691,8 @@ int numeroNHarrivati;
 float loadOutRilevato;
 float loadComplessivo;
 char cKey[12];
+byte buf_as_path[500];
+char next_hop_ip[NET_MAX_TEXT_LENGTH+1];
 char nhCKey[12];
 int NhVecchio;
 int esportoDestinazioni;

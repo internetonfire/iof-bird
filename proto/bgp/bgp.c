@@ -326,12 +326,12 @@ void
 dest_mrai_timeout(timer *t)
 {
     list *connections = t->data;
-    BGP_TRACE(D_EVENTS, "MRAI timeout");
     /* If there is something into the list i will trigger an update on the first connection FCFS*/
     if (list_length(connections) > 0) {
         struct conn_list_node *head = HEAD(*connections);
         struct bgp_conn *conn = head->conn;
         struct bgp_proto *p = conn->bgp;
+        BGP_TRACE(D_EVENTS, "MRAI timeout");
 
         bgp_fire_tx(conn);
         bgp_free_conn_from_prefix(head);

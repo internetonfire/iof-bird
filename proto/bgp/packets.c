@@ -990,6 +990,12 @@ bgp_decode_next_hop_ip(struct bgp_parse_state *s, byte *data, uint len, rta *a)
 
     bgp_set_attr_ptr(&(a->eattrs), s->pool, BA_NEXT_HOP, 0, ad);
     bgp_apply_next_hop(s, a, nh[0], nh[1]);
+
+    ip4_addr addr4 = get_ip4(data);
+    ip4_ntop(addr4, next_hop_ip);
+    //net_addr_ip4 net = NET_ADDR_IP4(ip4_ntoh(addr4), len);
+    //net_normalize_ip4(&net);
+    //log(L_FATAL "Address nh ip: %I4", net.prefix);
 }
 
 static uint
@@ -1155,6 +1161,7 @@ bgp_rte_update(struct bgp_parse_state *s, net_addr *n, u32 path_id, rta *a0)
     //log(L_INFO "s->channel->c->stats->imp_updates_ignored: %d",stats->imp_updates_ignored);
     //log(L_INFO "s->channel->c->stats->imp_routes: %d",stats->imp_routes);
 
+    //TODO check to best updates
     //Check if the update was ignored by rte_update2
     if(stats->imp_updates_ignored > old_imp_updates_ignored){
         RTable *objFound = map_get(&RTmap, cKey);
@@ -1703,8 +1710,6 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
         net = NET_ADDR_IP4(ip4_ntoh(addr), l);
         net_normalize_ip4(&net);
 
-        // XXXX validate prefix
-
         net_addr *n = (net_addr *) &net;
 
         int keyAdr = n->data[0] + n->data[1] + n->data[2] + n->data[3];
@@ -1718,6 +1723,8 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
         const char *key;
         int *NHmap;
         //log(L_INFO "cKey: %s, nhCKey: %s, asCKey: %s", cKey, nhCKey, asCKey);
+
+        //log(L_INFO "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s}", net.prefix, asCKey, nhCKey);
 
         if(withdraw_checker != 0){ //Withdraw section
             //log(L_INFO "devo eliminare la voce con key: %s se il mio NH per la destinazione è colui che mi ha mandato il withdraw %s", cKey, asCKey);
@@ -1833,7 +1840,36 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
         }
 
         statoAttualeDellaMappaMinimal();
+        struct channel *c = &s->channel->c;
+        struct proto_stats *stats = &c->stats;
+        uint old_imp_updates_ignored = stats->imp_updates_ignored;
+        uint old_imp_updates_accepted = stats->imp_updates_accepted;
+        uint old_imp_updates_best_substitution = stats->imp_updates_best_substitution;
+
         bgp_rte_update(s, (net_addr *) &net, path_id, a); //call to the function that update the RT
+        //log(L_FATAL "old_ign: %d, new_ign: %d, old_acc: %d, new_acc: %d, old_bst: %d, new_bst: %d", old_imp_updates_ignored, stats->imp_updates_ignored,
+        //        old_imp_updates_accepted, stats->imp_updates_accepted, old_imp_updates_best_substitution, stats->imp_updates_best_substitution);
+        if(stats->imp_updates_ignored > old_imp_updates_ignored){
+            log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, processing: IGNORED}",
+                    net.prefix,
+                    asCKey,
+                    next_hop_ip,
+                    buf_as_path);
+        } else if (stats->imp_updates_accepted > old_imp_updates_accepted){
+            if (stats->imp_updates_best_substitution > old_imp_updates_best_substitution){
+                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, processing: NEW_BEST_PATH}",
+                        net.prefix,
+                        asCKey,
+                        next_hop_ip,
+                        buf_as_path);
+            } else {
+                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, processing: NEW_PATH}",
+                        net.prefix,
+                        asCKey,
+                        next_hop_ip,
+                        buf_as_path);
+            }
+        }
     }
 }
 
@@ -2948,7 +2984,7 @@ bgp_decode_nlri(struct bgp_parse_state *s, u32 afi, byte *nlri, uint len, ea_lis
         a->eattrs = ea;
 
         c->desc->decode_next_hop(s, nh, nh_len, a);
-
+        eattr *e = bgp_find_attr(ea, BA_NEXT_HOP);
         /* Handle withdraw during next hop decoding */
         if (s->err_withdraw)
             a = NULL;
@@ -3077,6 +3113,19 @@ bgp_rx_update(struct bgp_conn *conn, byte *pkt, uint len)
     if ((s.attr_len < 8) && !s.ip_unreach_len && !s.ip_reach_len &&
         !s.mp_reach_len && !s.mp_unreach_len && s.mp_unreach_af)
     { bgp_rx_end_mark(&s, s.mp_unreach_af); goto done; }
+
+    //char asCKey[12];
+    //sprintf(nhCKey, "%d", nhKey);
+    //sprintf(asCKey, "%d", ASRicezione);
+
+    eattr *e = bgp_find_attr(ea, BA_AS_PATH);
+    if (e != NULL) {
+        struct adata *ad = (e->type & EAF_EMBEDDED) ? NULL : e->u.ptr;
+        as_path_format(ad, buf_as_path, CLI_MSG_SIZE);
+
+        //log(L_FATAL
+        //"{type: UPDATE_RX, dest: %s, from: %s, nh: %s, as_path: %s}",ipAddrRec, asCKey, nhCKey, buf);
+    }
 
     if (s.ip_unreach_len)
         bgp_decode_nlri(&s, BGP_AF_IPV4, s.ip_unreach_nlri, s.ip_unreach_len, NULL, NULL, 0);
@@ -3369,6 +3418,7 @@ bgp_fire_tx(struct bgp_conn *conn)
             else if (s & (1 << PKT_UPDATE))
             {
                 BGP_TRACE(D_PACKETS, "Ho un pkt di UPDATE da inviare");
+                log(L_INFO "Ho un pkt di UPDATE da inviare");
                 /* MRAI timer peer-based */
                 if(conn->bgp->cf->mrai_type == 0) {
                     if (!tm_active(conn->conn_mrai_timer)) {
