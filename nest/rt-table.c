@@ -967,6 +967,21 @@ rte_recalculate(struct channel *c, net *net, rte *new, struct rte_src *src)
   static struct tbf rl_pipe = TBF_DEFAULT_LOG_LIMITS;
   rte *before_old = NULL;
   rte *old_best = net->routes;
+
+  /*struct ea_list *tmpa = rte_make_tmp_attrs(old_best, cli->show_pool);
+
+  struct rta *old_attrs = old_best->attrs;
+  struct ea_list *old_eattrs = old_attrs->eattrs;
+  eattr *e = bgp_find_attr(ea, BA_AS_PATH);
+  if (e != NULL) {
+      byte buf_as_path_old[500];
+      struct adata *ad = (e->type & EAF_EMBEDDED) ? NULL : e->u.ptr;
+      as_path_format(ad, buf_as_path_old, CLI_MSG_SIZE);
+      log(L_FATAL "old as path: %s", buf_as_path_old);
+      //log(L_FATAL
+      //"{type: UPDATE_RX, dest: %s, from: %s, nh: %s, as_path: %s}",ipAddrRec, asCKey, nhCKey, buf);
+  }*/
+
   rte *old = NULL;
   rte **k;
 

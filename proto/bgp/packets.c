@@ -1157,6 +1157,23 @@ bgp_rte_update(struct bgp_parse_state *s, net_addr *n, u32 path_id, rta *a0)
     //log(L_INFO "s->channel->c->stats->imp_routes: %d",stats->imp_routes);
     //How much updates are ignored
     uint old_imp_updates_ignored = stats->imp_updates_ignored;
+
+    net *nn;
+    nn = net_get(c->table, n);
+    rte *old_best = nn->routes;
+    sprintf(buf_old_best_as_path, "NONE");
+    if (old_best != NULL) {
+        struct rta *old_attrs = old_best->attrs;
+        if (old_attrs != NULL) {
+            struct ea_list *old_eattrs = old_attrs->eattrs;
+            eattr *e_attr_old = bgp_find_attr(old_eattrs, BA_AS_PATH);
+            if (e_attr_old != NULL) {
+                struct adata *ad = (e_attr_old->type & EAF_EMBEDDED) ? NULL : e_attr_old->u.ptr;
+                as_path_format(ad, buf_old_best_as_path, CLI_MSG_SIZE);
+            }
+        }
+    }
+
     rte_update2(&s->channel->c, n, e, s->last_src);
     //log(L_INFO "s->channel->c->stats->imp_updates_ignored: %d",stats->imp_updates_ignored);
     //log(L_INFO "s->channel->c->stats->imp_routes: %d",stats->imp_routes);
@@ -1318,6 +1335,7 @@ bgp_encode_nlri_ip4(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
 
         /* Encode prefix body */
         ip4_addr a = ip4_hton(net->prefix);
+        ip4_ntop(a, dest_ip);
         uint b = (net->pxlen + 7) / 8;
         memcpy(pos, &a, b);
         ADVANCE(pos, size, b);
@@ -1426,6 +1444,7 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
 
                 /* Encode prefix body */
                 ip4_addr a = ip4_hton(net->prefix);
+                ip4_ntop(a, dest_ip);
                 uint b = (net->pxlen + 7) / 8;
                 memcpy(pos, &a, b);
                 ADVANCE(pos, size, b);
@@ -1461,6 +1480,7 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
 
                     /* Encode prefix body */
                     ip4_addr a = ip4_hton(net->prefix);
+                    ip4_ntop(a, dest_ip);
                     uint b = (net->pxlen + 7) / 8;
                     memcpy(pos, &a, b);
                     ADVANCE(pos, size, b);
@@ -1850,24 +1870,27 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
         //log(L_FATAL "old_ign: %d, new_ign: %d, old_acc: %d, new_acc: %d, old_bst: %d, new_bst: %d", old_imp_updates_ignored, stats->imp_updates_ignored,
         //        old_imp_updates_accepted, stats->imp_updates_accepted, old_imp_updates_best_substitution, stats->imp_updates_best_substitution);
         if(stats->imp_updates_ignored > old_imp_updates_ignored){
-            log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, processing: IGNORED}",
+            log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, processing: IGNORED}",
                     net.prefix,
                     asCKey,
                     next_hop_ip,
-                    buf_as_path);
+                    buf_as_path,
+                    buf_old_best_as_path);
         } else if (stats->imp_updates_accepted > old_imp_updates_accepted){
             if (stats->imp_updates_best_substitution > old_imp_updates_best_substitution){
-                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, processing: NEW_BEST_PATH}",
+                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, processing: NEW_BEST_PATH}",
                         net.prefix,
                         asCKey,
                         next_hop_ip,
-                        buf_as_path);
+                        buf_as_path,
+                        buf_old_best_as_path);
             } else {
-                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, processing: NEW_PATH}",
+                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, processing: NEW_PATH}",
                         net.prefix,
                         asCKey,
                         next_hop_ip,
-                        buf_as_path);
+                        buf_as_path,
+                        buf_old_best_as_path);
             }
         }
     }
@@ -2534,6 +2557,15 @@ bgp_create_ip_reach(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
     int lr, la;
 
     la = bgp_encode_attrs(s, buck->eattrs, buf+4, buf + MAX_ATTRS_LENGTH);
+
+    sprintf(buf_as_path, "NONE");
+    struct ea_list *eaList = buck->eattrs;
+    eattr *e_attr = bgp_find_attr(eaList, BA_AS_PATH);
+    if (e_attr != NULL) {
+        struct adata *ad = (e_attr->type & EAF_EMBEDDED) ? NULL : e_attr->u.ptr;
+        as_path_format(ad, buf_as_path, CLI_MSG_SIZE);
+    }
+
     if (la < 0)
     {
         /* Attribute list too long */
@@ -2544,6 +2576,7 @@ bgp_create_ip_reach(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
     put_u16(buf+0, 0);
     put_u16(buf+2, la);
 
+    sprintf(dest_ip, "NONE");
     lr = bgp_encode_nlri(s, buck, buf+4+la, end);
 
     return buf+4+la+lr;
@@ -2571,6 +2604,15 @@ bgp_create_ip_reach_mrai_destination_based(struct bgp_conn *conn, struct bgp_wri
     int lr, la;
 
     la = bgp_encode_attrs(s, buck->eattrs, buf+4, buf + MAX_ATTRS_LENGTH);
+
+    sprintf(buf_as_path, "NONE");
+    struct ea_list *eaList = buck->eattrs;
+    eattr *e_attr = bgp_find_attr(eaList, BA_AS_PATH);
+    if (e_attr != NULL) {
+        struct adata *ad = (e_attr->type & EAF_EMBEDDED) ? NULL : e_attr->u.ptr;
+        as_path_format(ad, buf_as_path, CLI_MSG_SIZE);
+    }
+
     if (la < 0)
     {
         /* Attribute list too long */
@@ -2581,6 +2623,7 @@ bgp_create_ip_reach_mrai_destination_based(struct bgp_conn *conn, struct bgp_wri
     put_u16(buf+0, 0);
     put_u16(buf+2, la);
 
+    sprintf(dest_ip, "NONE");
     lr = bgp_encode_nlri_mrai_destination_based(conn, s, buck, buf+4+la, end);
 
     return buf+4+la+lr;
@@ -3436,6 +3479,7 @@ bgp_fire_tx(struct bgp_conn *conn)
                                           conn->bgp->cf->mrai_time);
                                 bgp_start_ms_timer(conn->conn_mrai_timer, conn->bgp->cf->mrai_time);
                             }
+                            log(L_FATAL "{type: UPDATE_TX, dest: %s, to: %d, as_path: %s}",dest_ip, p->remote_as, buf_as_path);
                             return bgp_send(conn, PKT_UPDATE, end - buf);
                         }
 
@@ -3476,6 +3520,7 @@ bgp_fire_tx(struct bgp_conn *conn)
                         /* Enable the timer only if the mrai timer is different than 0 */
                         log(L_INFO
                         "mrai type: %d", conn->bgp->cf->mrai_type);
+                        log(L_FATAL "{type: UPDATE_TX, dest: %s, to: %d, as_path: %s}",dest_ip, p->remote_as, buf_as_path);
                         return bgp_send(conn, PKT_UPDATE, end - buf);
                     }
 
@@ -3493,6 +3538,7 @@ bgp_fire_tx(struct bgp_conn *conn)
                         return bgp_send(conn, PKT_ROUTE_REFRESH, end - buf);
                     }
 
+                    //TODO whis code i repeated twice
                     c->packets_to_send = 0;
                     conn->channels_to_send &= ~(1 << c->index);
                 }
