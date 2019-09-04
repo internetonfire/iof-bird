@@ -692,6 +692,7 @@ float loadOutRilevato;
 float loadComplessivo;
 char cKey[12];
 byte buf_old_best_as_path[500];
+byte buf_new_best_as_path[500];
 byte buf_as_path[500];
 char next_hop_ip[NET_MAX_TEXT_LENGTH+1];
 char dest_ip[NET_MAX_TEXT_LENGTH+1];

@@ -2186,6 +2186,10 @@ void updateNHmap(int aggiungoNH){
 int
 bgp_rte_better(rte *new, rte *old)
 {
+    net *new_net = new->net;
+    net *old_net = old->net;
+    //log(L_FATAL "OLD: %-1N, NEW: %-1N", new_net->n.addr, old_net->n.addr);
+
     int key = 0;
     key = new->net->n.addr->data[0] + new->net->n.addr->data[1] + new->net->n.addr->data[2] + new->net->n.addr->data[3];
     sprintf(cKey, "%d", key);
@@ -2225,6 +2229,7 @@ bgp_rte_better(rte *new, rte *old)
     y = ea_find(old->attrs->eattrs, EA_CODE(EAP_BGP, BA_LOCAL_PREF));
     n = x ? x->u.data : new_bgp->cf->default_local_pref;
     o = y ? y->u.data : old_bgp->cf->default_local_pref;
+    //log(L_FATAL "pref: new %lu old %lu", n, o);
     if (n > o){
         updateNHmap(1);
         return 1;
@@ -2241,11 +2246,20 @@ bgp_rte_better(rte *new, rte *old)
         y = ea_find(old->attrs->eattrs, EA_CODE(EAP_BGP, BA_AS_PATH));
         n = x ? as_path_getlen(x->u.ptr) : AS_PATH_MAXLEN;
         o = y ? as_path_getlen(y->u.ptr) : AS_PATH_MAXLEN;
+        //log(L_FATAL "path len: new %lu old %lu", n, o);
         if (n < o){
+            byte buf[500];
+            struct adata *ad = (x->type & EAF_EMBEDDED) ? NULL : x->u.ptr;
+            as_path_format(ad, buf, 500);
+            //log(L_FATAL "Chosen path: %s", buf);
             updateNHmap(1);
             return 1;
         }
         if (n > o){
+            byte buf[500];
+            struct adata *ad = (y->type & EAF_EMBEDDED) ? NULL : y->u.ptr;
+            as_path_format(ad, buf, 500);
+            //log(L_FATAL "Chosen path: %s", buf);
             updateNHmap(0);
             return 0;
         }
@@ -2256,6 +2270,7 @@ bgp_rte_better(rte *new, rte *old)
     y = ea_find(old->attrs->eattrs, EA_CODE(EAP_BGP, BA_ORIGIN));
     n = x ? x->u.data : ORIGIN_INCOMPLETE;
     o = y ? y->u.data : ORIGIN_INCOMPLETE;
+    //log(L_FATAL "origin: new %lu old %lu", n, o);
     if (n < o){
         updateNHmap(1);
         return 1;

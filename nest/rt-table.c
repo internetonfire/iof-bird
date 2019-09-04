@@ -1112,24 +1112,32 @@ rte_recalculate(struct channel *c, net *net, rte *new, struct rte_src *src)
 
   if (table->config->sorted)
     {
+      //log(L_FATAL "Sorted");
       /* If routes are sorted, just insert new route to appropriate position */
-      if (new)
-	{
-	  if (before_old && !rte_better(new, before_old))
-	    k = &before_old->next;
-	  else
-	    k = &net->routes;
+      if (new) {
+          if (before_old && !rte_better(new, before_old))
+              k = &before_old->next;
+          else
+              k = &net->routes;
 
-	  for (; *k; k=&(*k)->next)
-	    if (rte_better(new, *k))
-	      break;
+          for (; *k; k = &(*k)->next)
+              if (rte_better(new, *k))
+                  break;
 
-	  new->next = *k;
-	  *k = new;
-	}
+          new->next = *k;
+          *k = new;
+
+          struct network *cazzoDiCane;
+          for (; *k; k = &(*k)->next) {
+              cazzoDiCane = (*k)->net;
+              log(L_FATAL
+              "%-1N ", cazzoDiCane->n.addr);
+          }
+      }
     }
   else
     {
+        //log(L_FATAL "not Sorted");
       /* If routes are not sorted, find the best route and move it on
 	 the first position. There are several optimized cases. */
 
@@ -1138,11 +1146,12 @@ rte_recalculate(struct channel *c, net *net, rte *new, struct rte_src *src)
 
       if (new && rte_better(new, old_best))
 	{
-	  /* The first case - the new route is cleary optimal,
+	  /* The first case - the new route is clearly optimal,
 	     we link it at the first position */
 
 	  new->next = net->routes;
 	  net->routes = new;
+	  //log(L_FATAL "Clearly optimal %-1N", new->net->n.addr);
 	}
       else if (old == old_best)
 	{
@@ -1173,6 +1182,7 @@ rte_recalculate(struct channel *c, net *net, rte *new, struct rte_src *src)
 	      *bp = best->next;
 	      best->next = net->routes;
 	      net->routes = best;
+	      //log(L_FATAL "New best route: %-1N", net->n.addr);
 	    }
 	}
       else if (new)
@@ -1340,14 +1350,14 @@ rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src)
 
   rte_update_lock();
   if (new)
-    {
+  {
       nn = net_get(c->table, n);
 
       new->net = nn;
       new->sender = c;
 
       if (!new->pref)
-	new->pref = c->preference;
+	    new->pref = c->preference;
 
       stats->imp_updates_received++;
       if (!rte_validate(new))

@@ -1124,11 +1124,14 @@ bgp_rte_update(struct bgp_parse_state *s, net_addr *n, u32 path_id, rta *a0)
     //log(L_INFO "BGP_RTE_UPDATE");
     if (path_id != s->last_id)
     {
+        //log(L_FATAL "Path id != s->last_id: %lu, %lu", path_id, s->last_id);
         s->last_src = rt_get_source(&s->proto->p, path_id);
         s->last_id = path_id;
 
         rta_free(s->cached_rta);
         s->cached_rta = NULL;
+    } else {
+        //log(L_FATAL "Path id == s->last_id: %lu, %lu", path_id, s->last_id);
     }
     if (!a0)
     {
@@ -1158,21 +1161,6 @@ bgp_rte_update(struct bgp_parse_state *s, net_addr *n, u32 path_id, rta *a0)
     //How much updates are ignored
     uint old_imp_updates_ignored = stats->imp_updates_ignored;
 
-    net *nn;
-    nn = net_get(c->table, n);
-    rte *old_best = nn->routes;
-    sprintf(buf_old_best_as_path, "NONE");
-    if (old_best != NULL) {
-        struct rta *old_attrs = old_best->attrs;
-        if (old_attrs != NULL) {
-            struct ea_list *old_eattrs = old_attrs->eattrs;
-            eattr *e_attr_old = bgp_find_attr(old_eattrs, BA_AS_PATH);
-            if (e_attr_old != NULL) {
-                struct adata *ad = (e_attr_old->type & EAF_EMBEDDED) ? NULL : e_attr_old->u.ptr;
-                as_path_format(ad, buf_old_best_as_path, CLI_MSG_SIZE);
-            }
-        }
-    }
 
     rte_update2(&s->channel->c, n, e, s->last_src);
     //log(L_INFO "s->channel->c->stats->imp_updates_ignored: %d",stats->imp_updates_ignored);
@@ -1866,31 +1854,64 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
         uint old_imp_updates_accepted = stats->imp_updates_accepted;
         uint old_imp_updates_best_substitution = stats->imp_updates_best_substitution;
 
+        struct network *old_net = net_get(c->table, (net_addr *) &net);
+        rte *old_best = old_net->routes;
+        sprintf(buf_old_best_as_path, "NONE");
+        if (old_best != NULL) {
+            struct rta *old_attrs = old_best->attrs;
+            if (old_attrs != NULL) {
+                struct ea_list *old_eattrs = old_attrs->eattrs;
+                eattr *e_attr_old = bgp_find_attr(old_eattrs, BA_AS_PATH);
+                if (e_attr_old != NULL) {
+                    struct adata *ad = (e_attr_old->type & EAF_EMBEDDED) ? NULL : e_attr_old->u.ptr;
+                    as_path_format(ad, buf_old_best_as_path, CLI_MSG_SIZE);
+                }
+            }
+        }
+
         bgp_rte_update(s, (net_addr *) &net, path_id, a); //call to the function that update the RT
         //log(L_FATAL "old_ign: %d, new_ign: %d, old_acc: %d, new_acc: %d, old_bst: %d, new_bst: %d", old_imp_updates_ignored, stats->imp_updates_ignored,
         //        old_imp_updates_accepted, stats->imp_updates_accepted, old_imp_updates_best_substitution, stats->imp_updates_best_substitution);
+        struct network *new_net = net_get(c->table, (net_addr *) &net);
+        rte *mew_best = new_net->routes;
+        sprintf(buf_new_best_as_path, "NONE");
+        if (mew_best != NULL) {
+            struct rta *new_attrs = mew_best->attrs;
+            if (new_attrs != NULL) {
+                struct ea_list *new_eattrs = new_attrs->eattrs;
+                eattr *e_attr_new = bgp_find_attr(new_eattrs, BA_AS_PATH);
+                if (e_attr_new != NULL) {
+                    struct adata *ad = (e_attr_new->type & EAF_EMBEDDED) ? NULL : e_attr_new->u.ptr;
+                    as_path_format(ad, buf_new_best_as_path, CLI_MSG_SIZE);
+                }
+            }
+        }
+
         if(stats->imp_updates_ignored > old_imp_updates_ignored){
-            log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, processing: IGNORED}",
+            log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, actual_best_path: %s, processing: IGNORED}",
                     net.prefix,
                     asCKey,
                     next_hop_ip,
                     buf_as_path,
-                    buf_old_best_as_path);
+                    buf_old_best_as_path,
+                    buf_new_best_as_path);
         } else if (stats->imp_updates_accepted > old_imp_updates_accepted){
             if (stats->imp_updates_best_substitution > old_imp_updates_best_substitution){
-                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, processing: NEW_BEST_PATH}",
+                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, actual_best_path: %s, processing: NEW_BEST_PATH}",
                         net.prefix,
                         asCKey,
                         next_hop_ip,
                         buf_as_path,
-                        buf_old_best_as_path);
+                        buf_old_best_as_path,
+                        buf_new_best_as_path);
             } else {
-                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, processing: NEW_PATH}",
+                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, actual_best_path: %s, processing: NEW_PATH}",
                         net.prefix,
                         asCKey,
                         next_hop_ip,
                         buf_as_path,
-                        buf_old_best_as_path);
+                        buf_old_best_as_path,
+                        buf_new_best_as_path);
             }
         }
     }
