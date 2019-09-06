@@ -549,6 +549,7 @@ cmd_shutdown(void)
     return;
 
   cli_msg(7, "Shutdown requested");
+    log_msg(L_FATAL "Shutdown requested");
   order_shutdown();
 }
 

@@ -1234,6 +1234,7 @@ rte_recalculate(struct channel *c, net *net, rte *new, struct rte_src *src)
           //log(L_FATAL
           //"{type: REMOVED_SOLE_OLD, dest: %N}", old->net->n.addr);
       }
+	  stats->imp_updates_removed_route++;
 	}
     }
 

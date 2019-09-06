@@ -1853,6 +1853,7 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
         uint old_imp_updates_ignored = stats->imp_updates_ignored;
         uint old_imp_updates_accepted = stats->imp_updates_accepted;
         uint old_imp_updates_best_substitution = stats->imp_updates_best_substitution;
+        uint old_imp_updates_removed_route = stats->imp_updates_removed_route;
 
         struct network *old_net = net_get(c->table, (net_addr *) &net);
         rte *old_best = old_net->routes;
@@ -1906,6 +1907,16 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
                         buf_new_best_as_path);
             } else {
                 log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, actual_best_path: %s, processing: NEW_PATH}",
+                        net.prefix,
+                        asCKey,
+                        next_hop_ip,
+                        buf_as_path,
+                        buf_old_best_as_path,
+                        buf_new_best_as_path);
+            }
+        } else {
+            if(stats->imp_updates_removed_route > old_imp_updates_removed_route){
+                log(L_FATAL "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s, as_path: %s, previus_best_path: %s, actual_best_path: %s, processing: REMOVED_REPLACED_PATH}",
                         net.prefix,
                         asCKey,
                         next_hop_ip,
