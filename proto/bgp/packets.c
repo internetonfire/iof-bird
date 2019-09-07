@@ -1323,7 +1323,7 @@ bgp_encode_nlri_ip4(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
 
         /* Encode prefix body */
         ip4_addr a = ip4_hton(net->prefix);
-        ip4_ntop(a, dest_ip);
+        ip4_ntop(net->prefix, dest_ip);
         uint b = (net->pxlen + 7) / 8;
         memcpy(pos, &a, b);
         ADVANCE(pos, size, b);
@@ -1432,7 +1432,7 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
 
                 /* Encode prefix body */
                 ip4_addr a = ip4_hton(net->prefix);
-                ip4_ntop(a, dest_ip);
+                ip4_ntop(net->prefix, dest_ip);
                 uint b = (net->pxlen + 7) / 8;
                 memcpy(pos, &a, b);
                 ADVANCE(pos, size, b);
@@ -1468,7 +1468,7 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
 
                     /* Encode prefix body */
                     ip4_addr a = ip4_hton(net->prefix);
-                    ip4_ntop(a, dest_ip);
+                    ip4_ntop(net->prefix, dest_ip);
                     uint b = (net->pxlen + 7) / 8;
                     memcpy(pos, &a, b);
                     ADVANCE(pos, size, b);

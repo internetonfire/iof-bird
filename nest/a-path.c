@@ -363,7 +363,7 @@ as_path_format(const struct adata *path, byte *bb, uint size)
 
     while (len--)
     {
-      buffer_print(b, len ? "%u," : "%u", get_as(pos));
+      buffer_print(b, len ? "%u|" : "%u", get_as(pos));
       pos += BS;
     }
 
