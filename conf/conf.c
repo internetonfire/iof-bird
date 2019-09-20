@@ -252,8 +252,10 @@ config_do_commit(struct config *c, int type)
   config = c;
 
   configuring = 1;
-  if (old_config && !config->shutdown)
-    log(L_INFO "Reconfiguring");
+  if (old_config && !config->shutdown) {
+      log(L_INFO "Reconfiguring");
+      log(L_FATAL "{type: RECONF}");
+  }
 
   if (old_config)
     old_config->obstacle_count++;

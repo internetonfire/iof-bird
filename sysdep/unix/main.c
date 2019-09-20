@@ -549,7 +549,7 @@ cmd_shutdown(void)
     return;
 
   cli_msg(7, "Shutdown requested");
-    log_msg(L_FATAL "Shutdown requested");
+  log_msg(L_INFO "Shutdown requested");
   order_shutdown();
 }
 
@@ -565,7 +565,7 @@ sysdep_shutdown_done(void)
 {
   unlink_pid_file();
   unlink(path_control_socket);
-  log_msg(L_FATAL "Shutdown completed");
+  log_msg(L_INFO "Shutdown completed");
   exit(0);
 }
 
