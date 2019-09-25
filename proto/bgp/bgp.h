@@ -480,7 +480,7 @@ struct rte_source *bgp_get_source(struct bgp_proto *p, u32 path_id);
 
 //Aggiunta a manina
 //Potrebbe essere utile in alcune situaizoni per avere un recap del protocollo
-void bgp_show_proto_info_mine(struct bgp_proto *P);
+//void bgp_show_proto_info_mine(struct bgp_proto *P);
 
 #ifdef LOCAL_DEBUG
 #define BGP_FORCE_DEBUG 1
@@ -617,19 +617,19 @@ void bgp_update_next_hop(struct bgp_export_state *s, eattr *a, ea_list **to);
 #define BA_AS4_AGGREGATOR       0x12	/* RFC 6793 */
 #define BA_LARGE_COMMUNITY	0x20	/* RFC 8092 */
 
-#define BA_LOAD_OUT 0x22
-#define BA_AS_NH_LIST		0x23
-#define BA_AS_LOAD  0x24
+//#define BA_LOAD_OUT 0x22
+//#define BA_AS_NH_LIST		0x23
+//#define BA_AS_LOAD  0x24
 
 //TODO refactor position of this functions
-void
-statoAttualeDellaMappa(void);
-void
-statoAttualeDellaMappaMinimal(void);
-void
-updateNHmap(int);
+//void
+//statoAttualeDellaMappa(void);
+//void
+//statoAttualeDellaMappaMinimal(void);
+//void
+//updateNHmap(int);
 
-void initRTmap(void);
+//void initRTmap(void);
 
 /*
  * Punto ad utilizzare una mappa delle destinazioni
@@ -641,7 +641,7 @@ void initRTmap(void);
  * load -> centralità di d conosciuta dal nodo
 */
 
-typedef struct {
+/*typedef struct {
   net_addr *d;
   int interno; //0 = interno, 1 = esterno
   map_int_t NH;
@@ -654,41 +654,41 @@ typedef struct {
   rte *rtElem;
   ea_list *ea;
   int primaVolta;
-} RTable;
+} RTable;*/
 
-typedef struct {
+/*typedef struct {
     u32 remote_as;
-} remoteAS;
+} remoteAS;*/
 
-typedef map_t(remoteAS) RemoteAS_map_t;
+//typedef map_t(remoteAS) RemoteAS_map_t;
 
-typedef struct {
+/*typedef struct {
     float load;
     int metrica;
     int changed;
     RemoteAS_map_t remoteMap;
-} ASLoad;
+} ASLoad;*/
 
 //TODO insert this tables in the protocol
-typedef map_t(RTable) RTable_map_t;
-typedef map_t(ASLoad) ASLoad_map_t;
+//typedef map_t(RTable) RTable_map_t;
+//typedef map_t(ASLoad) ASLoad_map_t;
 
-map_int_t ExternalDestinationMap;
-RTable_map_t RTmap;
-ASLoad_map_t ASLoad_map;
+//map_int_t ExternalDestinationMap;
+//RTable_map_t RTmap;
+//ASLoad_map_t ASLoad_map;
 
 //TODO put somewhere else this definition
-RTable initRTableElement(net_addr*, int, int);
+//RTable initRTableElement(net_addr*, int, int);
 
 //TODO check each single variable if is needed or could be replaced or already taken into account by the protcol,
 // the needed one needs to be inserted into the protocol class
-int withdraw_checker;
-int rilevatoLoop;
+//int withdraw_checker;
+//int rilevatoLoop;
 int nhKey;
 int ASRicezione;
-int sonoIlNH;
-int numeroNHarrivati;
-float loadOutRilevato;
+//int sonoIlNH;
+//int numeroNHarrivati;
+//float loadOutRilevato;
 float loadComplessivo;
 char cKey[12];
 byte buf_old_best_as_path[500];
@@ -697,10 +697,10 @@ byte buf_as_path[500];
 char next_hop_ip[NET_MAX_TEXT_LENGTH+1];
 char dest_ip[NET_MAX_TEXT_LENGTH+1];
 char nhCKey[12];
-int NhVecchio;
-int esportoDestinazioni;
+//int NhVecchio;
+//int esportoDestinazioni;
 char ASLocale[12];
-float loadOut;
+//float loadOut;
 
 int bgp_fire_tx(struct bgp_conn *conn);
 

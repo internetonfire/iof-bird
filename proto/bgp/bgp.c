@@ -272,8 +272,8 @@ bgp_startup(struct bgp_proto *p)
     if (!p->cf->passive)
         bgp_active(p);
 
-    initRTmap();
-    loadComplessivo = 0;
+    //initRTmap();
+    //loadComplessivo = 0;
     sent_prefix_slab = NULL;
 }
 
@@ -432,7 +432,7 @@ bgp_close_conn(struct bgp_conn *conn)
     map_iter_t iterNHmap_RTmap;
 
     //NH removing from the data structure
-    iterRTmap = map_iter(&RTmap);
+    /*iterRTmap = map_iter(&RTmap);
     while ((keyRTmap = map_next(&RTmap, &iterRTmap))) {
         RTable *RTmap_element = map_get(&RTmap, keyRTmap);
         iterNHmap_RTmap = map_iter(&RTmap_element->NH);
@@ -453,7 +453,7 @@ bgp_close_conn(struct bgp_conn *conn)
             if(keyValue == conn->bgp->remote_as)
                 map_remove(&RTmap_element->loadin, keyLoadInmap_RTmap);
         }
-    }
+    }*/
 
     conn->packets_to_send = 0;
     conn->channels_to_send = 0;
@@ -2258,7 +2258,7 @@ bgp_show_proto_info(struct proto *P)
 }
 
 // Next three function could be usefull in some situations
-void
+/*void
 channel_show_info_mine(struct channel *c)
 {
     log(L_INFO "  Channel %s", c->name);
@@ -2268,10 +2268,10 @@ channel_show_info_mine(struct channel *c)
     log(L_INFO "    Input filter:   %s", filter_name(c->in_filter));
     log(L_INFO "    Output filter:  %s", filter_name(c->out_filter));
 
-    /*if (graceful_restart_state == GRS_ACTIVE)
+    ///*if (graceful_restart_state == GRS_ACTIVE)
         log(L_INFO "    GR recovery:   %s%s",
                 c->gr_lock ? " pending" : "",
-                c->gr_wait ? " waiting" : "");*/
+                c->gr_wait ? " waiting" : "");//
 
     //channel_show_limit(&c->rx_limit, "Receive limit:");
     //channel_show_limit(&c->in_limit, "Import limit:");
@@ -2279,9 +2279,9 @@ channel_show_info_mine(struct channel *c)
 
     //if (c->channel_state != CS_DOWN)
     //    channel_show_stats(c);
-}
+}*/
 
-static void
+/*static void
 bgp_show_capabilities_mine(struct bgp_proto *p UNUSED, struct bgp_caps *caps)
 {
     struct bgp_af_caps *ac;
@@ -2336,7 +2336,7 @@ bgp_show_capabilities_mine(struct bgp_proto *p UNUSED, struct bgp_caps *caps)
 
     if (any_gr_able)
     {
-        /* Continues from gr_aware */
+        // Continues from gr_aware
         log(L_INFO "        Restart time: %u", caps->gr_time);
         if (caps->gr_flags & BGP_GRF_RESTART)
             log(L_INFO "        Restart recovery");
@@ -2379,8 +2379,9 @@ bgp_show_capabilities_mine(struct bgp_proto *p UNUSED, struct bgp_caps *caps)
     if (caps->enhanced_refresh)
         log(L_INFO "      Enhanced refresh");
 }
+*/
 
-void
+/*void
 bgp_show_proto_info_mine(struct bgp_proto *P)
 {
     struct bgp_proto *p = P;
@@ -2459,7 +2460,7 @@ bgp_show_proto_info_mine(struct bgp_proto *P)
                 log(L_INFO "    IGP IPv6 table: %s", c->igp_table_ip6->name);
         }
     }
-}
+}*/
 
 struct channel_class channel_bgp = {
         .channel_size =	sizeof(struct bgp_channel),

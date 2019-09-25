@@ -896,10 +896,10 @@ bgp_update_next_hop_ip(struct bgp_export_state *s, eattr *a, ea_list **to)
     //TODO prima le righe non erano commentate
 
     /* Forbid next hop equal to neighbor IP */
-    //if (ipa_equal(peer, nh[0]) || ((len == 32) && ipa_equal(peer, nh[1])))
-    //WITHDRAW(BAD_NEXT_HOP);
+    if (ipa_equal(peer, nh[0]) || ((len == 32) && ipa_equal(peer, nh[1])))
+        WITHDRAW(BAD_NEXT_HOP);
     //log(L_INFO "WITHDRAW CHECKER = %d", withdraw_checker);
-    if(withdraw_checker != 0) {
+    /*if(withdraw_checker != 0) {
         //log(L_INFO "IMPEDISCO LA RICONDIVISIONE DEL MESSAGGIO?");
         if (ipa_equal(peer, nh[0]) || ((len == 32) && ipa_equal(peer, nh[1]))) {
             //log(L_INFO "IMPEDIRE");
@@ -907,7 +907,7 @@ bgp_update_next_hop_ip(struct bgp_export_state *s, eattr *a, ea_list **to)
         } else {
             //log(L_INFO "Non impedire");
         }
-    }
+    }*/
 
     /* Forbid next hop with non-matching AF */
     if ((ipa_is_ip4(nh[0]) != bgp_channel_is_ipv4(s->channel)) &&
@@ -1168,7 +1168,7 @@ bgp_rte_update(struct bgp_parse_state *s, net_addr *n, u32 path_id, rta *a0)
 
     //TODO check to best updates
     //Check if the update was ignored by rte_update2
-    if(stats->imp_updates_ignored > old_imp_updates_ignored){
+    /*if(stats->imp_updates_ignored > old_imp_updates_ignored){
         RTable *objFound = map_get(&RTmap, cKey);
         const char *keyTmp;
         map_iter_t iterator = map_iter(&objFound->NH);
@@ -1191,7 +1191,7 @@ bgp_rte_update(struct bgp_parse_state *s, net_addr *n, u32 path_id, rta *a0)
             objFound->rtElem = e;
             objFound->primaVolta = 0;
         }
-    }
+    }*/
 }
 
 static void
@@ -1513,7 +1513,7 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
 /**
  * Function to print in the log the actual state of the map
  */
-void statoAttualeDellaMappa(){
+/*void statoAttualeDellaMappa(){
     char *jsonOut = malloc(sizeof(char) * 2);
     strcpy(jsonOut, "");
     char *tmpJsonOut = malloc(sizeof(char) * 150);
@@ -1603,12 +1603,12 @@ void statoAttualeDellaMappa(){
     log(L_INFO "\n%s",jsonOut);
     free(tmpJsonOut);
     free(jsonOut);
-}
+} */
 
 /**
  * Function to print the map into the log but with less informations
  */
-void statoAttualeDellaMappaMinimal(){
+/*void statoAttualeDellaMappaMinimal(){
     char *jsonOut = malloc(sizeof(char) * 2);
     char *tmpJsonOut = malloc(sizeof(char) * 150);
     strcpy(jsonOut, "");
@@ -1668,7 +1668,7 @@ void statoAttualeDellaMappaMinimal(){
     jsonOut = NULL;
     free(tmpJsonOut);
     free(pointerToJsonOutOriginal);
-}
+}*/
 
 /**
  * This is where the magic of DPC happen
@@ -1726,15 +1726,15 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
         sprintf(nhCKey, "%d", nhKey);
         sprintf(asCKey, "%d", ASRicezione);
 
-        RTable *objFound;
+        /*RTable *objFound;
         map_iter_t iter;
         const char *key;
-        int *NHmap;
+        int *NHmap;*/
         //log(L_INFO "cKey: %s, nhCKey: %s, asCKey: %s", cKey, nhCKey, asCKey);
 
         //log(L_INFO "{type: UPDATE_RX, dest: %I4, from: %s, nh: %s}", net.prefix, asCKey, nhCKey);
 
-        if(withdraw_checker != 0){ //Withdraw section
+        /*if(withdraw_checker != 0){ //Withdraw section
             //log(L_INFO "devo eliminare la voce con key: %s se il mio NH per la destinazione è colui che mi ha mandato il withdraw %s", cKey, asCKey);
             objFound = map_get(&RTmap, cKey);
             if (objFound) {
@@ -1779,10 +1779,10 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
                         objFound->primaVolta = 1;
                     }
                 }
-            }
+            }*/
 
             /*Manage load contributes*/
-            char output[50];
+            /*char output[50];
             if(sonoIlNH == 1){
                 //log(L_INFO "Io sono tra i NH del mittente, cKey: %s", cKey);
                 objFound = map_get(&RTmap, cKey);
@@ -1845,9 +1845,9 @@ bgp_decode_nlri_ip4(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
                     map_remove(&ASLoad_element->remoteMap, key);
                 }
             }
-        }
+        }*/
 
-        statoAttualeDellaMappaMinimal();
+        //statoAttualeDellaMappaMinimal();
         struct channel *c = &s->channel->c;
         struct proto_stats *stats = &c->stats;
         uint old_imp_updates_ignored = stats->imp_updates_ignored;
@@ -3037,10 +3037,10 @@ bgp_decode_nlri(struct bgp_parse_state *s, u32 afi, byte *nlri, uint len, ea_lis
     s->last_src = s->proto->p.main_source;
 
     //TODO gne
-    if(nh_len == 0){
+    /*if(nh_len == 0){
         //log(L_INFO "Trovato withdraw");
-        withdraw_checker = 1;
-    }
+        //withdraw_checker = 1;
+    }*/
 
     /*
      * IPv4 BGP and MP-BGP may be used together in one update, therefore we do not
@@ -3102,16 +3102,16 @@ static void
 bgp_rx_update(struct bgp_conn *conn, byte *pkt, uint len)
 {
     char output[50];
-    float tmpLoad = loadComplessivo;
-    snprintf(output, 50, "%f", loadComplessivo);
+    //float tmpLoad = loadComplessivo;
+    //snprintf(output, 50, "%f", loadComplessivo);
 
-    withdraw_checker = 0;
+    //withdraw_checker = 0;
     struct bgp_proto *p = conn->bgp;
     snprintf(ASLocale, 12, "%d", p->public_as);
 
     ea_list *ea = NULL;
 
-    rilevatoLoop = 0;
+    //rilevatoLoop = 0;
     ASRicezione = p->remote_as;
     BGP_TRACE_RL(&rl_rcv_update, D_PACKETS, "Got UPDATE");
 
@@ -3172,9 +3172,9 @@ bgp_rx_update(struct bgp_conn *conn, byte *pkt, uint len)
     s.ip_reach_len = len - pos;
     s.ip_reach_nlri = pkt + pos;
 
-    sonoIlNH = 0;
-    numeroNHarrivati = 0.0;
-    loadOutRilevato = 0.0;
+    //sonoIlNH = 0;
+    //numeroNHarrivati = 0.0;
+    //loadOutRilevato = 0.0;
     if (s.attr_len)
         ea = bgp_decode_attrs(&s, s.attrs, s.attr_len);
     else
@@ -3221,7 +3221,7 @@ bgp_rx_update(struct bgp_conn *conn, byte *pkt, uint len)
     lp_flush(s.pool);
 
     //TODO code refactoring
-    if (tmpLoad != loadComplessivo){
+    /*if (tmpLoad != loadComplessivo){
         log(L_INFO "LOAD COMPLESSIVO VARIATO");
 
         RTable *objFound = map_get(&RTmap, cKey);
@@ -3259,7 +3259,7 @@ bgp_rx_update(struct bgp_conn *conn, byte *pkt, uint len)
             if (tmp == 0 && i > 0) {
                 //Force RT_notify
                 //objFound->P->rt_notify(objFound->P, objFound->C, objFound->n, objFound->rtElem, NULL, objFound->rtElem->attrs->eattrs);
-                /*ea = objFound->rtElem->attrs->eattrs;
+                //ea = objFound->rtElem->attrs->eattrs;
                 struct bgp_proto *pr = (void *)objFound->P;
                 struct bgp_channel *ch = (void *)objFound->C;
                 rte *new = objFound->rtElem;
@@ -3275,12 +3275,12 @@ bgp_rx_update(struct bgp_conn *conn, byte *pkt, uint len)
                     px = bgp_get_prefix(ch, n->n.addr, ch->add_path_tx ? path : 0);
                     add_tail(&buck->prefixes, &px->buck_node);
                     bgp_schedule_packet(pr->conn, ch, PKT_UPDATE);
-                }*/
+                }//
             }
         }
     } else {
         log(L_INFO "Load complessivo invariato");
-    }
+    }*/
 
     return;
 }

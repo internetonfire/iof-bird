@@ -86,7 +86,7 @@ static inline int bgp_attr_known(uint code);
  *
  * @author Mattia Milani
  */
-void initRTmap(){
+/*void initRTmap(){
     //Map init
     map_init(&RTmap);
     map_init(&ExternalDestinationMap);
@@ -94,7 +94,7 @@ void initRTmap(){
     //Variable setting
     esportoDestinazioni = 0;
     total_number_of_update_sent = 0;
-}
+}*/
 
 /**
  * Init function for the init of a RT element to be loaded in the data structure
@@ -103,7 +103,7 @@ void initRTmap(){
  * @param inter Define if an addr is intern or extern
  * @return Return the RTable element
  */
-RTable
+/*RTable
 initRTableElement(net_addr *dest, int l, int inter){
     RTable element;
     element.interno = inter;
@@ -112,7 +112,7 @@ initRTableElement(net_addr *dest, int l, int inter){
     map_init(&element.loadin);
     element.load = l;
     return element;
-}
+}*/
 
 eattr *
         bgp_set_attr(ea_list **attrs, struct linpool *pool, uint code, uint flags, uintptr_t val)
@@ -291,7 +291,7 @@ bgp_encode_as_path(struct bgp_write_state *s, eattr *a, byte *buf, uint size)
     return bgp_put_attr(buf, size, BA_AS_PATH, a->flags, data, len);
 }
 
-static int
+/*static int
 bgp_encode_nhs_list(struct bgp_write_state *s, eattr *a, byte *buf, uint size)
 {
     byte *data = a->u.ptr->data;
@@ -299,14 +299,13 @@ bgp_encode_nhs_list(struct bgp_write_state *s, eattr *a, byte *buf, uint size)
 
     if (!s->as4_session)
     {
-        /* Prepare 16-bit AS_PATH (from 32-bit one) in a temporary buffer */
         byte *src = data;
         data = alloca(len);
         len = as_path_32to16(data, src, len);
     }
 
     return bgp_put_attr(buf, size, BA_AS_NH_LIST, a->flags, data, len);
-}
+}*/
 
 /**
  * Function to encode the load to the correct attribute
@@ -316,7 +315,7 @@ bgp_encode_nhs_list(struct bgp_write_state *s, eattr *a, byte *buf, uint size)
  * @param size size of the attribute
  * @return
  */
-static int
+/*static int
 bgp_encode_as_load(struct bgp_write_state *s, eattr *a, byte *buf, uint size)
 {
     //Pointer to the data contained in the attribute
@@ -333,7 +332,7 @@ bgp_encode_as_load(struct bgp_write_state *s, eattr *a, byte *buf, uint size)
     }
 
     return bgp_put_attr(buf, size, BA_AS_LOAD, a->flags, data, len);
-}
+}*/
 
 /**
  * Function to decode the as path passed from the packet
@@ -385,7 +384,7 @@ bgp_decode_as_path(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte
  * @param len
  * @param to
  */
-static void
+/*static void
 bgp_decode_nhs_list(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte *data, uint len, ea_list **to)
 {
     struct bgp_proto *p = s->proto;
@@ -396,14 +395,12 @@ bgp_decode_nhs_list(struct bgp_parse_state *s, uint code UNUSED, uint flags, byt
     if (!as_path_valid(data, len, as_length, as_confed, err, sizeof(err)))
         WITHDRAW("Malformed AS_PATH attribute - %s", err);
 
-    /* In some circumstances check for initial AS_CONFED_SEQUENCE; RFC 5065 5.0 */
     if (p->is_interior && !p->is_internal &&
         ((len < 2) || (data[0] != AS_PATH_CONFED_SEQUENCE)))
         WITHDRAW("Malformed AS_PATH attribute - %s", "missing initial AS_CONFED_SEQUENCE");
 
     if (!s->as4_session)
     {
-        /* Prepare 32-bit AS_PATH (from 16-bit one) in a temporary buffer */
         byte *src = data;
         data = alloca(2*len);
         len = as_path_16to32(data, src, len);
@@ -415,14 +412,13 @@ bgp_decode_nhs_list(struct bgp_parse_state *s, uint code UNUSED, uint flags, byt
         //log(L_INFO "Decodifica nh %d:", numeroNHarrivati);
         int i = 0;
         int k = 2;
-        /* Check if my as is in the NH list */
         for(i = 0;i < data[1]; i++){
-            /*log(L_INFO "C'è un NH");
+            //log(L_INFO "C'è un NH");
             *log(L_INFO "data[%d] = %d",i, data[k]);
             *log(L_INFO "data[%d] = %d",i, data[k+1]);
             *log(L_INFO "data[%d] = %d",i, data[k+2]);
             *log(L_INFO "data[%d] = %d",i, data[k+3]);
-            */
+            //
             char buf2[32];
             sprintf(buf2, "%02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);
             unsigned int nhLetto = (int)strtol(buf2, NULL, 16);
@@ -435,7 +431,7 @@ bgp_decode_nhs_list(struct bgp_parse_state *s, uint code UNUSED, uint flags, byt
             }
         }
     }
-}
+} */
 
 /**
  * Function to decode the load data structure from an update packet
@@ -446,7 +442,7 @@ bgp_decode_nhs_list(struct bgp_parse_state *s, uint code UNUSED, uint flags, byt
  * @param len
  * @param to
  */
-static void
+/*static void
 bgp_decode_as_load(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte *data, uint len, ea_list **to)
 {
     //log(L_INFO "SONO IN AS LOAD");
@@ -477,24 +473,24 @@ bgp_decode_as_load(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte
         int i = 0;
         int k = 2;
         for(i = 0;i < data[1]; i++){
-            /*log(L_INFO "C'è un AS");
+            //log(L_INFO "C'è un AS");
             log(L_INFO "data[%d] = %d",i, data[k]);
             log(L_INFO "data[%d] = %d",i, data[k+1]);
             log(L_INFO "data[%d] = %d",i, data[k+2]);
             log(L_INFO "data[%d] = %d",i, data[k+3]);
-            log(L_INFO "AS => %02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);*/
+            log(L_INFO "AS => %02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);//
             char buf2[32];
             sprintf(buf2, "%02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);
             unsigned int asLetto = (int)strtol(buf2, NULL, 16);
             //log(L_INFO "as[%d] = %d",i, asLetto);
             k+=4;
             i++;
-            /*log(L_INFO "Load AS");
+            //log(L_INFO "Load AS");
             log(L_INFO "data[%d] = %d",i, data[k]);
             log(L_INFO "data[%d] = %d",i, data[k+1]);
             log(L_INFO "data[%d] = %d",i, data[k+2]);
             log(L_INFO "data[%d] = %d",i, data[k+3]);
-            log(L_INFO "AS LOAD => %02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);*/
+            log(L_INFO "AS LOAD => %02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);//
             sprintf(buf2, "%02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);
             int loadLetto = (int)strtol(buf2, NULL, 16);
             float loadASRileato = *((float *) &loadLetto);
@@ -504,12 +500,12 @@ bgp_decode_as_load(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte
             k+=4;
             i++;
 
-            /*log(L_INFO "Metrica Load AS");
+            //log(L_INFO "Metrica Load AS");
             log(L_INFO "data[%d] = %d",i, data[k]);
             log(L_INFO "data[%d] = %d",i, data[k+1]);
             log(L_INFO "data[%d] = %d",i, data[k+2]);
             log(L_INFO "data[%d] = %d",i, data[k+3]);
-            log(L_INFO "AS METRIC => %02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);*/
+            log(L_INFO "AS METRIC => %02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);//
             sprintf(buf2, "%02X%02X%02X%02X",data[k], data[k+1], data[k+2], data[k+3]);
             int metrica = (int)strtol(buf2, NULL, 16);
             //log(L_INFO "metrica[%d] = %d",i, metrica);
@@ -554,7 +550,7 @@ bgp_decode_as_load(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte
             }
         }
     }
-}
+}*/
 
 /**
  * Function to encode the NH
@@ -642,7 +638,7 @@ bgp_decode_med(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte *da
  * @param len
  * @param to
  */
-static void
+/*static void
 bgp_decode_load_out(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte *data, uint len, ea_list **to)
 {
     if (len != 4)
@@ -653,7 +649,7 @@ bgp_decode_load_out(struct bgp_parse_state *s, uint code UNUSED, uint flags, byt
     int v = val;
     loadOutRilevato = *((float *) &v);
     snprintf(output, 50, "%f", loadOutRilevato);
-}
+}*/
 
 static void
 bgp_export_local_pref(struct bgp_export_state *s, eattr *a)
@@ -1026,27 +1022,6 @@ static const struct bgp_attr_desc bgp_attr_table[] = {
                 .flags = BAF_OPTIONAL | BAF_TRANSITIVE,
                 .encode = bgp_encode_as_path,
                 .decode = bgp_decode_as_path,
-        },
-        [BA_AS_NH_LIST] = {
-                .name = "NH",
-                .type = EAF_TYPE_AS_PATH,
-                .flags = BAF_TRANSITIVE, //-> documentation
-                .encode = bgp_encode_nhs_list,
-                .decode = bgp_decode_nhs_list,
-        },
-        [BA_AS_LOAD] = {
-                .name = "AS_LOAD",
-                .type = EAF_TYPE_AS_PATH,
-                .flags = BAF_TRANSITIVE,
-                .encode = bgp_encode_as_load,
-                .decode = bgp_decode_as_load,
-        },
-        [BA_LOAD_OUT] = {
-                .name = "load_out",
-                .type = EAF_TYPE_INT,
-                .flags = BAF_OPTIONAL | BAF_TRANSITIVE,
-                .encode = bgp_encode_u32,
-                .decode = bgp_decode_load_out,
         },
         [BA_NEXT_HOP] = {
                 .name = "next_hop",
@@ -1450,7 +1425,7 @@ bgp_decode_attrs(struct bgp_parse_state *s, byte *data, uint len)
     /* Reject routes with our ASN in AS_PATH attribute */
     if (bgp_as_path_loopy(p, attrs, p->local_as)) {
         //log(L_INFO "HEI HO SCOPERTO CHE C'È UN LOOP!");
-        rilevatoLoop = 1;
+        //rilevatoLoop = 1;
         goto withdraw;
     }
 
@@ -1539,8 +1514,8 @@ bgp_free_bucket_table(struct bgp_channel *c)
 }
 
 void bgp_copy_bucket_list(struct bgp_channel *c, list from_queue, list to_queue){
-    struct bgp_bucket *b;
-    struct bgp_bucket *b_next;
+    //struct bgp_bucket *b;
+    //struct bgp_bucket *b_next;
     log(L_INFO "Walking...");
     /*HASH_FREE(c->pending_bucket_hash);
     WALK_LIST_DELSAFE(b, b_next, from_queue)
@@ -1841,17 +1816,17 @@ bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *at
     char bufProto[16] = "";
     map_iter_t iter;
 
-    RTable *objForDestination = map_get(&RTmap, cKey);
+    //RTable *objForDestination = map_get(&RTmap, cKey);
     const char *key;
 
     /* ORIGIN attribute - mandatory, attach if missing */
     if (! bgp_find_attr(attrs0, BA_ORIGIN))
         bgp_set_attr_u32(&attrs, pool, BA_ORIGIN, 0, src ? ORIGIN_INCOMPLETE : ORIGIN_IGP);
 
-    if(withdraw_checker == 0) {
+    /*if(withdraw_checker == 0) {
         int integerLoadOut = *((int *) &loadOut);
         bgp_set_attr_u32(&attrs, pool, BA_LOAD_OUT, 0, integerLoadOut);
-    }
+    }*/
 
     /* AS_PATH attribute - mandatory */
     a = bgp_find_attr(attrs0, BA_AS_PATH);
@@ -1882,10 +1857,10 @@ bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *at
         ad = as_path_prepend2(pool, ad, AS_PATH_SEQUENCE, p->public_as);
         bgp_set_attr_ptr(&attrs, pool, BA_AS_PATH, 0, ad);
 
-        //All data is loaded in the nexthope data structure and load data structure
-        if(withdraw_checker == 0 && objForDestination != NULL) {
+        //All data is loaded in the nexthop data structure and load data structure
+        /*if(withdraw_checker == 0 && objForDestination != NULL) {
 
-            /* set the nh_list attribute */
+            // set the nh_list attribute
             adata *nh_list = &null_adata; //Clean the attribute received
             iter = map_iter(&objForDestination->NH);
             while ((key = map_next(&objForDestination->NH, &iter))) {
@@ -1895,7 +1870,7 @@ bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *at
             }
             bgp_set_attr_ptr(&attrs, pool, BA_AS_NH_LIST, 0, nh_list);
 
-            /* Set the as know list */
+            // Set the as know list //
             adata *as_data_list = &null_adata;
             iter = map_iter(&ASLoad_map);
 
@@ -1919,7 +1894,7 @@ bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *at
                 map_set(&ASLoad_map, bufProto, new_ASLoad);
             }
 
-            /* Set values in the list */
+            // Set values in the list //
             while ((key = map_next(&ASLoad_map, &iter))) {
 
                 ASLoad *ASLoad_element = map_get(&ASLoad_map, key);
@@ -1941,7 +1916,7 @@ bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *at
             }
 
             bgp_set_attr_ptr(&attrs, pool, BA_AS_LOAD, 0, as_data_list);
-        }
+        }*/
 
         /* MULTI_EXIT_DESC attribute - accept only if set in export filter */
         a = bgp_find_attr(attrs0, BA_MULTI_EXIT_DISC);
@@ -2005,7 +1980,7 @@ bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *at
      */
 
     /* Apply per-attribute export hooks for validatation and normalization */
-    withdraw_checker = 0;
+    //withdraw_checker = 0;
     return bgp_export_attrs(&s, attrs);
 }
 
@@ -2021,7 +1996,7 @@ void bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *ol
     map_iter_t iterator;
 
     //The key is composed by the summ of the four part of the address
-    sprintf(cKey, "%d", n->n.addr->data[0] + n->n.addr->data[1] + n->n.addr->data[2] + n->n.addr->data[3]);
+    /*sprintf(cKey, "%d", n->n.addr->data[0] + n->n.addr->data[1] + n->n.addr->data[2] + n->n.addr->data[3]);
     if(withdraw_checker == 0){
         if (! bgp_find_attr(attrs, BA_ORIGIN)){
             RTable *rt = map_get(&RTmap, cKey);
@@ -2047,34 +2022,34 @@ void bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *ol
                 }
             }
         }
-    }
-
+    }*/
     if (new)
     {
-        RTable *objForDestination = map_get(&RTmap, cKey);
-        if (objForDestination) {
-            if(esportoDestinazioni == 1){
-                loadOut = 1;    //Destination node
-            } else {
-                loadOut = 0;    //Transit node
-            }
-            iterator = map_iter(&objForDestination->NH);
-            int i = 0;
-            while ((key = map_next(&objForDestination->NH, &iterator))) {
-                i++;    //Count how much NH are in the table for this destination
-            }
-            if(i==0 && objForDestination->interno == 1){   //If there is no NH and the origin is internal
-                map_remove(&RTmap, cKey);
-            } else {
-                iterator = map_iter(&objForDestination->loadin);
-                while (key = map_next(&objForDestination->loadin, &iterator)) {
-                    float *value = map_get(&objForDestination->loadin, key);
-                    if(value != NULL){
-                        loadOut += *value;
+        /*
+            RTable *objForDestination = map_get(&RTmap, cKey);
+            if (objForDestination) {
+                if(esportoDestinazioni == 1){
+                    loadOut = 1;    //Destination node
+                } else {
+                    loadOut = 0;    //Transit node
+                }
+                iterator = map_iter(&objForDestination->NH);
+                int i = 0;
+                while ((key = map_next(&objForDestination->NH, &iterator))) {
+                    i++;    //Count how much NH are in the table for this destination
+                }
+                if(i==0 && objForDestination->interno == 1){   //If there is no NH and the origin is internal
+                    map_remove(&RTmap, cKey);
+                } else {
+                    iterator = map_iter(&objForDestination->loadin);
+                    while (key = map_next(&objForDestination->loadin, &iterator)) {
+                        float *value = map_get(&objForDestination->loadin, key);
+                        if(value != NULL){
+                            loadOut += *value;
+                        }
                     }
                 }
-            }
-        }
+            }*/
 
         attrs = bgp_update_attrs(p, c, new, attrs, bgp_linpool2);
 
@@ -2137,7 +2112,7 @@ rte_resolvable(rte *rt)
  * Function to update the NH of an already known route
  * @param aggiungoNH
  */
-void updateNHmap(int aggiungoNH){
+/*void updateNHmap(int aggiungoNH){
     RTable *objFound = map_get(&RTmap, cKey);
     const char *keyTmp;
     map_iter_t iterator;
@@ -2175,7 +2150,7 @@ void updateNHmap(int aggiungoNH){
             map_remove(&RTmap, cKey);
         }
     }
-}
+}*/
 
 /**
  * Function to mantain the new or the old, called after a collision on the routing table
@@ -2204,11 +2179,11 @@ bgp_rte_better(rte *new, rte *old)
     n = new->u.bgp.suppressed;
     o = old->u.bgp.suppressed;
     if (n > o){
-        updateNHmap(0);
+        //updateNHmap(0);
         return 0;
     }
     if (n < o){
-        updateNHmap(1);
+        //updateNHmap(1);
         return 1;
     }
 
@@ -2216,11 +2191,11 @@ bgp_rte_better(rte *new, rte *old)
     n = rte_resolvable(new);
     o = rte_resolvable(old);
     if (n > o){
-        updateNHmap(1);
+        //updateNHmap(1);
         return 1;
     }
     if (n < o){
-        updateNHmap(0);
+        //updateNHmap(0);
         return 0;
     }
 
@@ -2231,11 +2206,11 @@ bgp_rte_better(rte *new, rte *old)
     o = y ? y->u.data : old_bgp->cf->default_local_pref;
     //log(L_FATAL "pref: new %lu old %lu", n, o);
     if (n > o){
-        updateNHmap(1);
+        //updateNHmap(1);
         return 1;
     }
     if (n < o){
-        updateNHmap(0);
+        //updateNHmap(0);
         return 0;
     }
 
@@ -2252,7 +2227,7 @@ bgp_rte_better(rte *new, rte *old)
             struct adata *ad = (x->type & EAF_EMBEDDED) ? NULL : x->u.ptr;
             as_path_format(ad, buf, 500);
             //log(L_FATAL "Chosen path: %s", buf);
-            updateNHmap(1);
+            //updateNHmap(1);
             return 1;
         }
         if (n > o){
@@ -2260,7 +2235,7 @@ bgp_rte_better(rte *new, rte *old)
             struct adata *ad = (y->type & EAF_EMBEDDED) ? NULL : y->u.ptr;
             as_path_format(ad, buf, 500);
             //log(L_FATAL "Chosen path: %s", buf);
-            updateNHmap(0);
+            //updateNHmap(0);
             return 0;
         }
     }
@@ -2272,11 +2247,11 @@ bgp_rte_better(rte *new, rte *old)
     o = y ? y->u.data : ORIGIN_INCOMPLETE;
     //log(L_FATAL "origin: new %lu old %lu", n, o);
     if (n < o){
-        updateNHmap(1);
+        //updateNHmap(1);
         return 1;
     }
     if (n > o){
-        updateNHmap(0);
+        //updateNHmap(0);
         return 0;
     }
 
@@ -2299,22 +2274,22 @@ bgp_rte_better(rte *new, rte *old)
         n = x ? x->u.data : new_bgp->cf->default_med;
         o = y ? y->u.data : old_bgp->cf->default_med;
         if (n < o){
-            updateNHmap(1);
+            //updateNHmap(1);
             return 1;
         }
         if (n > o){
-            updateNHmap(0);
+            //updateNHmap(0);
             return 0;
         }
     }
 
     /* RFC 4271 9.1.2.2. d) Prefer external peers */
     if (new_bgp->is_interior > old_bgp->is_interior){
-        updateNHmap(0);
+        //updateNHmap(0);
         return 0;
     }
     if (new_bgp->is_interior < old_bgp->is_interior){
-        updateNHmap(1);
+        //updateNHmap(1);
         return 1;
     }
 
@@ -2337,17 +2312,17 @@ bgp_rte_better(rte *new, rte *old)
     /* (if both are external and from different peer) */
     if ((new_bgp->cf->prefer_older || old_bgp->cf->prefer_older) &&
         !new_bgp->is_internal && n != o){
-        updateNHmap(0);
+        //updateNHmap(0);
         return 0;
     }
 
     /* rest of RFC 4271 9.1.2.2. f) */
     if (n < o){
-        updateNHmap(1);
+        //updateNHmap(1);
         return 1;
     }
     if (n > o){
-        updateNHmap(0);
+        //updateNHmap(0);
         return 0;
     }
 
@@ -2357,11 +2332,11 @@ bgp_rte_better(rte *new, rte *old)
     n = x ? int_set_get_size(x->u.ptr) : 0;
     o = y ? int_set_get_size(y->u.ptr) : 0;
     if (n < o){
-        updateNHmap(1);
+        //updateNHmap(1);
         return 1;
     }
     if (n > o){
-        updateNHmap(0);
+        //updateNHmap(0);
         return 0;
     }
 
