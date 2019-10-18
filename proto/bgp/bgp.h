@@ -682,7 +682,7 @@ void bgp_update_next_hop(struct bgp_export_state *s, eattr *a, ea_list **to);
 
 //TODO check each single variable if is needed or could be replaced or already taken into account by the protcol,
 // the needed one needs to be inserted into the protocol class
-//int withdraw_checker;
+int withdraw_checker;
 //int rilevatoLoop;
 int nhKey;
 int ASRicezione;
