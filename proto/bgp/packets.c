@@ -2794,7 +2794,7 @@ bgp_create_mp_unreach(struct bgp_write_state *s, struct bgp_bucket *buck, byte *
 static byte *
 bgp_create_update(struct bgp_channel *c, byte *buf)
 {
-    log(L_INFO "bgp create update");
+    //log(L_INFO "bgp create update");
     struct bgp_proto *p = (void *) c->c.proto;
     struct bgp_bucket *buck;
     byte *end = buf + (bgp_max_packet_length(p->conn) - BGP_HEADER_LENGTH);
@@ -2816,7 +2816,6 @@ bgp_create_update(struct bgp_channel *c, byte *buf)
     //If there is information inside this bucket i will send a withdrow
     if ((buck = c->withdraw_bucket) && !EMPTY_LIST(buck->prefixes))
     {
-        log(L_INFO "UNREACH HEHEHE");
         withdraw_checker = 1;
         res = (c->afi == BGP_AF_IPV4) && !c->ext_next_hop ?
               bgp_create_ip_unreach(&s, buck, buf, end):
@@ -2837,14 +2836,14 @@ bgp_create_update(struct bgp_channel *c, byte *buf)
             goto again;
         }
 
-        log(L_INFO "buck prefixes before create ip_reach: ");
+        /*log(L_INFO "buck prefixes before create ip_reach: ");
         struct bgp_prefix *px;
         WALK_LIST(px, buck->prefixes)
         {
             struct net_addr_ip4 *net = (void *) px->net;
             log(L_INFO
             "Trovata nel bucket rete: %N", &px->net);
-        }
+        }*/
         res = (c->afi == BGP_AF_IPV4) && !c->ext_next_hop ?
               bgp_create_ip_reach(&s, buck, buf, end):
               bgp_create_mp_reach(&s, buck, buf, end);
@@ -2906,6 +2905,7 @@ bgp_create_update_mrai_destination_based(struct bgp_conn *conn, struct bgp_chann
     //If there is information inside this bucket i will send a withdrow
     if ((buck = c->withdraw_bucket) && !EMPTY_LIST(buck->prefixes))
     {
+        withdraw_checker = 1;
         res = (c->afi == BGP_AF_IPV4) && !c->ext_next_hop ?
               bgp_create_ip_unreach(&s, buck, buf, end):
               bgp_create_mp_unreach(&s, buck, buf, end);
@@ -3553,21 +3553,24 @@ bgp_fire_tx(struct bgp_conn *conn)
                 else { /* MRAI timer destination-based */
                     BGP_TRACE(D_PACKETS, "Il timer MRAI non è attivo");
                     prefixAdded = 0;
+                    withdraw_checker = 0;
                     /* Utilizzo di una funzione specifica per la creazione del pacchetto */
                     end = bgp_create_update_mrai_destination_based(conn, c, pkt);
                     BGP_TRACE(D_PACKETS, "Pacchetto creato");
                     bgp_study_delayed_buck(delayed_bucket);
 
-                    if(prefixAdded == 0){
+                    if(prefixAdded == 0 && withdraw_checker == 0){
                         log(L_INFO "Nessuna rotta aggiunta al pacchetto");
                         return 0;
                     }
 
                     if (end) {
-                        /* Enable the timer only if the mrai timer is different than 0 */
-                        log(L_INFO
-                        "mrai type: %d", conn->bgp->cf->mrai_type);
-                        log(L_FATAL "{type: UPDATE_TX, dest: %s, to: %d, as_path: %s}",dest_ip, p->remote_as, buf_as_path);
+                        if(withdraw_checker == 0) {
+                            log(L_INFO
+                            "mrai type: %d", conn->bgp->cf->mrai_type);
+                            log(L_FATAL
+                            "{type: UPDATE_TX, dest: %s, to: %d, as_path: %s}", dest_ip, p->remote_as, buf_as_path);
+                        }
                         return bgp_send(conn, PKT_UPDATE, end - buf);
                     }
 
@@ -3585,7 +3588,7 @@ bgp_fire_tx(struct bgp_conn *conn)
                         return bgp_send(conn, PKT_ROUTE_REFRESH, end - buf);
                     }
 
-                    //TODO whis code i repeated twice
+                    //TODO this code is repeated twice
                     c->packets_to_send = 0;
                     conn->channels_to_send &= ~(1 << c->index);
                 }
