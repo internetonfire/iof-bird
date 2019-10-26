@@ -405,7 +405,7 @@ bgp_start_ms_timer(timer *t, uint value)
     {
         /* The randomization procedure is specified in RFC 4271 section 10 */
         btime time = value MS;
-        btime randomize = random() % ((time / 4) + 1);
+        btime randomize = random() % ((time / 20) + 1);
         log(L_INFO "Timer avviato con un delay di %d ms", time - randomize);
         tm_start(t, time - randomize);
     }
