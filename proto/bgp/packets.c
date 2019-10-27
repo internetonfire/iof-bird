@@ -1408,7 +1408,7 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
 
                 /* Timer settings */
                 tmp_prefix->dest_mrai_timer = tm_new_init(proto_pool, dest_mrai_timeout, &tmp_prefix->connections, 0, 0);
-                bgp_start_ms_timer(tmp_prefix->dest_mrai_timer, conn->bgp->cf->mrai_time);
+                bgp_start_ms_timer(tmp_prefix->dest_mrai_timer, conn->bgp->cf->mrai_time, conn->bgp->cf->mrai_jitter);
                 HASH_INSERT2(sent_prefix_hash, PXH, proto_pool, tmp_prefix);
 
                 /* Add prefix to the delayed bucket */
@@ -1450,7 +1450,7 @@ bgp_encode_nlri_ip4_mrai(struct bgp_conn *conn, struct bgp_write_state *s, struc
                     tmp_prefix->end_mrai = current_time() + conn->bgp->cf->mrai_time MS;
 
                     tmp_prefix->dest_mrai_timer = tm_new_init(proto_pool, dest_mrai_timeout, &tmp_prefix->connections, 0, 0);
-                    bgp_start_ms_timer(tmp_prefix->dest_mrai_timer, conn->bgp->cf->mrai_time);
+                    bgp_start_ms_timer(tmp_prefix->dest_mrai_timer, conn->bgp->cf->mrai_time, conn->bgp->cf->mrai_jitter);
 
                     /* Encode path ID */
                     if (s->add_path) {
@@ -3522,7 +3522,7 @@ bgp_fire_tx(struct bgp_conn *conn)
                                     BGP_TRACE(D_PACKETS,
                                               "CONFERMATO PKT UPDATE, avvio il timer considerando un delay di %d ms",
                                               conn->bgp->cf->mrai_time);
-                                    bgp_start_ms_timer(conn->conn_mrai_timer, conn->bgp->cf->mrai_time);
+                                    bgp_start_ms_timer(conn->conn_mrai_timer, conn->bgp->cf->mrai_time, conn->bgp->cf->mrai_jitter);
                                 }
                                 log(L_FATAL
                                 "{type: UPDATE_TX, dest: %s, to: %d, as_path: %s}", dest_ip, p->remote_as, buf_as_path);

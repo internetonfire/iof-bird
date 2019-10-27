@@ -399,13 +399,20 @@ bgp_start_timer(timer *t, uint value)
 }
 
 void
-bgp_start_ms_timer(timer *t, uint value)
+bgp_start_ms_timer(timer *t, uint value, uint jitter)
 {
     if (value)
     {
         /* The randomization procedure is specified in RFC 4271 section 10 */
         btime time = value MS;
-        btime randomize = random() % ((time / 20) + 1);
+        if(jitter > 100){
+            jitter = 25;
+        } else if(jitter == 0) {
+            jitter = 1;
+        }
+        int divisor = 100 / jitter;
+        log(L_INFO "divisor: %d", divisor);
+        btime randomize = random() % ((time / divisor) + 1);
         log(L_INFO "Timer avviato con un delay di %d ms", time - randomize);
         tm_start(t, time - randomize);
     }

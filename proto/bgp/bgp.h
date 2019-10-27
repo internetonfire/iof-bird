@@ -103,6 +103,7 @@ struct bgp_config {
   unsigned hold_time, initial_hold_time;
   unsigned mrai_time;       /* MRAI TIMER */
   unsigned mrai_type;       /* MRAI TYPE, 0 PEER-BASED MRAI, !0 DESTINATION-BASED mrai */
+  unsigned mrai_jitter;
   unsigned keepalive_time;
   unsigned error_amnesia_time;		/* Errors are forgotten after */
   unsigned error_delay_time_min;	/* Time to wait after an error is detected */
@@ -459,7 +460,7 @@ extern struct linpool *bgp_linpool2;
 
 
 void bgp_start_timer(timer *t, uint value);
-void bgp_start_ms_timer(timer *t, uint value);
+void bgp_start_ms_timer(timer *t, uint value, uint jitter);
 void bgp_check_config(struct bgp_config *c);
 void bgp_error(struct bgp_conn *c, unsigned code, unsigned subcode, byte *data, int len);
 void bgp_close_conn(struct bgp_conn *c);

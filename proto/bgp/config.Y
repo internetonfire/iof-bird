@@ -28,7 +28,7 @@ CF_KEYWORDS(BGP, LOCAL, NEIGHBOR, AS, HOLD, TIME, CONNECT, RETRY, KEEPALIVE,
 	BGP_CLUSTER_LIST, IGP, TABLE, GATEWAY, DIRECT, RECURSIVE, MED, TTL,
 	SECURITY, DETERMINISTIC, SECONDARY, ALLOW, BFD, ADD, PATHS, RX, TX,
 	GRACEFUL, RESTART, AWARE, CHECK, LINK, PORT, EXTENDED, MESSAGES, SETKEY,
-	STRICT, BIND, CONFEDERATION, MEMBER, MULTICAST, FLOW4, FLOW6)
+	STRICT, BIND, CONFEDERATION, MEMBER, MULTICAST, FLOW4, FLOW6, JITTER)
 
 %type <i32> bgp_afi
 
@@ -44,6 +44,7 @@ bgp_proto_start: proto_start BGP {
      BGP_CFG->hold_time = 240;
      BGP_CFG->mrai_time = 0;
      BGP_CFG->mrai_type = 0;
+     BGP_CFG->mrai_jitter = 25;
      BGP_CFG->initial_hold_time = 240;
      BGP_CFG->compare_path_lengths = 1;
      BGP_CFG->igp_metric = 1;
@@ -101,6 +102,7 @@ bgp_proto:
  | bgp_proto HOLD TIME expr ';' { BGP_CFG->hold_time = $4; }
  | bgp_proto MRAI TIME expr ';' { BGP_CFG->mrai_time = $4; }
  | bgp_proto MRAI TYPE expr ';' { BGP_CFG->mrai_type = $4; }
+ | bgp_proto MRAI JITTER expr ';' { BGP_CFG->mrai_jitter = $4; if (($4<1) || ($4>100)) cf_error("jitter must be in range 1-100");}
  | bgp_proto STARTUP HOLD TIME expr ';' { BGP_CFG->initial_hold_time = $5; }
  | bgp_proto DIRECT ';' { BGP_CFG->multihop = 0; }
  | bgp_proto MULTIHOP ';' { BGP_CFG->multihop = 64; }
