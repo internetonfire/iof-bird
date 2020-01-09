@@ -152,7 +152,6 @@ bgp_open(struct bgp_proto *p)
                    (ipa_is_ip4(p->cf->remote_ip) ? IPA_NONE4 : IPA_NONE6);
     uint port = p->cf->local_port;
 
-    /* FIXME: Add some global init? */
     if (!bgp_linpool)
         init_list(&bgp_sockets);
 

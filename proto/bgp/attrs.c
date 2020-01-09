@@ -369,7 +369,6 @@ bgp_decode_as_path(struct bgp_parse_state *s, uint code UNUSED, uint flags, byte
     }
     char buf2[32];
     sprintf(buf2, "%02X%02X%02X%02X",data[2], data[3], data[4], data[5]);
-    //TODO this data cannot be taken from the attribute data?
     ASRicezione = (int)strtol(buf2, NULL, 16);
     //log(L_INFO "%d", ASRicezione);
     bgp_set_attr_data(to, s->pool, BA_AS_PATH, flags, data, len);
@@ -1803,7 +1802,6 @@ bgp_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct li
 
 static adata null_adata;	/* adata of length 0 */
 
-//TODO refactor the code below, done one time, redo it with the thing in the protocol
 ea_list *
 bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *attrs0, struct linpool *pool)
 {
@@ -1984,7 +1982,6 @@ bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *at
     return bgp_export_attrs(&s, attrs);
 }
 
-//TODO refactor the code below, first round of refactoring done
 void bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *old, ea_list *attrs)
 {
     struct bgp_proto *p = (void *) P;
@@ -2107,7 +2104,6 @@ rte_resolvable(rte *rt)
     return rt->attrs->dest == RTD_UNICAST;
 }
 
-//TODO refactoring, first refactoring done
 /**
  * Function to update the NH of an already known route
  * @param aggiungoNH
@@ -2344,7 +2340,6 @@ bgp_rte_better(rte *new, rte *old)
     return (ipa_compare(new_bgp->cf->remote_ip, old_bgp->cf->remote_ip) < 0);
 }
 
-//TODO two route are mergiable? take care of that
 int
 bgp_rte_mergable(rte *pri, rte *sec)
 {

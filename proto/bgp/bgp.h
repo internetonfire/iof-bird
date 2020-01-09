@@ -274,7 +274,6 @@ struct bgp_proto {
 					   are encoded as (bgp_err_code << 16 | bgp_err_subcode) */
   unsigned int number_of_update_sent;
 
-  //TODO insert variables in the protocol and not in general
 };
 
 struct bgp_channel {
@@ -622,7 +621,6 @@ void bgp_update_next_hop(struct bgp_export_state *s, eattr *a, ea_list **to);
 //#define BA_AS_NH_LIST		0x23
 //#define BA_AS_LOAD  0x24
 
-//TODO refactor position of this functions
 //void
 //statoAttualeDellaMappa(void);
 //void
@@ -670,7 +668,6 @@ void bgp_update_next_hop(struct bgp_export_state *s, eattr *a, ea_list **to);
     RemoteAS_map_t remoteMap;
 } ASLoad;*/
 
-//TODO insert this tables in the protocol
 //typedef map_t(RTable) RTable_map_t;
 //typedef map_t(ASLoad) ASLoad_map_t;
 
@@ -678,11 +675,9 @@ void bgp_update_next_hop(struct bgp_export_state *s, eattr *a, ea_list **to);
 //RTable_map_t RTmap;
 //ASLoad_map_t ASLoad_map;
 
-//TODO put somewhere else this definition
 //RTable initRTableElement(net_addr*, int, int);
 
-//TODO check each single variable if is needed or could be replaced or already taken into account by the protcol,
-// the needed one needs to be inserted into the protocol class
+
 int withdraw_checker;
 //int rilevatoLoop;
 int nhKey;
